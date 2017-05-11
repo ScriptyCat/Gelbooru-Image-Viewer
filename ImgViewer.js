@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Gelbooru/Rule34xxx Viewer/Downloader
-// @version      1.2
+// @version      1.15
 // @description  A simple quick and dirty image viewer for gelbooru.com and rule34.xxx supports all formats from gif to webm.
 // @author       PineappleLover69
 // @include      https://gelbooru.com*
@@ -13,7 +13,8 @@
 
     //Settings
     var StartImageHeight = 650;
-
+    var AutoShowImageView = false;
+    var DisableImageLinks = true;
 
 
 
@@ -51,16 +52,18 @@
     var imgIndex = 0;
     var imgOpened = false;
 
-    for(i = 0; i < imgList.length;){
-        try{
-            //console.log(imgList[i].getAttribute("id"));
-            //console.log(imgList[i].childNodes[0].getAttribute("href"));
-            imgList[i].setAttribute("openRef", imgList[i].childNodes[0].getAttribute("href"));
-            imgList[i].childNodes[0].removeAttribute("href");
-            imgList[i].childNodes[0].addEventListener("click", ImgClick);
-            i++;
-        }catch(ex){
-            imgList[i].remove();
+    if(DisableImageLinks){
+        for(i = 0; i < imgList.length;){
+            try{
+                //console.log(imgList[i].getAttribute("id"));
+                //console.log(imgList[i].childNodes[0].getAttribute("href"));
+                imgList[i].setAttribute("openRef", imgList[i].childNodes[0].getAttribute("href"));
+                imgList[i].childNodes[0].removeAttribute("href");
+                imgList[i].childNodes[0].addEventListener("click", ImgClick);
+                i++;
+            }catch(ex){
+                imgList[i].remove();
+            }
         }
     }
 
@@ -120,12 +123,12 @@
         holdDiv.appendChild(preloadImg3); holdDiv.appendChild(preloadImg4);
 
         imgViewImg.addEventListener('load', DoPreload);
-        
+
         imgViewImg.addEventListener('mousedown', ImageMouseDown);
         imgViewImg.addEventListener('mouseup', ImageMouseUp);
         imgViewImg.addEventListener('mousemove', ImageMouseMove);
         imgViewImg.addEventListener('mouseleave', ImageMouseLeave);
-        
+
         videoImg.addEventListener('mousedown', ImageMouseDown);
         videoImg.addEventListener('mouseup', ImageMouseUp);
         videoImg.addEventListener('mousemove', ImageMouseMove);
@@ -166,6 +169,10 @@
         SetImg();
     }
 
+    if(AutoShowImageView){
+        ImgView();
+    }
+
     function ImageMouseDown(e){
         e.preventDefault();
         imgMouseDown = true; imgDownPosX = e.screenX; imgDownPosY = e.screenY; imgDownHeight = Number(imgViewImg.getAttribute("height"));
@@ -192,12 +199,12 @@
     }
 
     function BatchApiCall(){
-        var urlItems = getJsonFromUrl();        
+        var urlItems = getJsonFromUrl();
         var pid = 0;
         if(urlItems.pid)
             pid = urlItems.pid / 42;
 
-        var tags = document.getElementById("tags").value;        
+        var tags = document.getElementById("tags").value;
         var limit = imgList.length;
 
         var request = "/index.php?page=dapi&s=post&q=index&limit=" + limit + "&tags=" + tags + "&pid=" + pid;
@@ -319,7 +326,7 @@
     function GetSrcForImg(getIndex){
         if(postSources[getIndex]){
             return postSources[getIndex];
-        } else {    
+        } else {
             var tmpSrc = imgList[getIndex].id;
             tmpSrc = tmpSrc.replace("s", "");
 
@@ -355,11 +362,11 @@
         var tags = currentPost["@attributes"].tags;
         var splitTags = tags.split(' ');
 
-        RemoveTags();       
+        RemoveTags();
 
         var tagBar = document.getElementById("tag-sidebar");
         var firstTag = tagBar.childNodes[0];
-        var stringToReplace = firstTag.innerHTML.substring(firstTag.innerHTML.indexOf("search=") + 7, firstTag.innerHTML.indexOf('" title="Wiki"'));        
+        var stringToReplace = firstTag.innerHTML.substring(firstTag.innerHTML.indexOf("search=") + 7, firstTag.innerHTML.indexOf('" title="Wiki"'));
 
         for(var i = 1; i < splitTags.length; i++){
             AddTag(splitTags[i], tagBar, firstTag, stringToReplace);
@@ -477,7 +484,7 @@
 
     var tagE = document.getElementById("tags");
     function keyInput(e){
-        if(document.activeElement != tagE){			
+        if(document.activeElement != tagE){
             if(e.keyCode === 32){
                 e.preventDefault();
                 return false;
