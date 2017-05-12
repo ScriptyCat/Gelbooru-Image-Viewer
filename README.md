@@ -6,6 +6,9 @@ Has a basic image preload thing in it that should preload the images ahead of th
 Left and right arrow keys will change image. Down arrow key downloads current image.
 I wonder how many people will find this or get use out of it.
 
+v1.25
+-Fixed a few tag bugs and made the image viewer more stable
+
 v1.2 
 -Moved to github
 
