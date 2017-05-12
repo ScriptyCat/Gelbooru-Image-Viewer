@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         Gelbooru/Rule34xxx Viewer/Downloader
-// @version      1.2
+// @version      1.25
 // @description  A simple quick and dirty image viewer for gelbooru.com and rule34.xxx supports all formats from gif to webm.
 // @author       PineappleLover69
 // @include      https://gelbooru.com*
