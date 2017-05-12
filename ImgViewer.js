@@ -5,7 +5,6 @@
 // @author       PineappleLover69
 // @include      https://gelbooru.com*
 // @include      https://rule34.xxx*
-// @include      http://gelbooru.com*
 // @include      http://rule34.xxx*
 // ==/UserScript==
 
@@ -372,6 +371,17 @@
             AddTag(splitTags[i], tagBar, firstTag, stringToReplace);
         }
         firstTag.remove();
+        RemoveEmptyTags();
+    }
+
+    function RemoveEmptyTags(){
+        var tagBar = document.getElementById("tag-sidebar");
+        for(var i = tagBar.childNodes.length - 1; i >= 0 ; i--){
+            let tAg = tagBar.childNodes[i];
+            if(tAg.childNodes[7].innerHTML == ""){
+                tAg.remove();
+            }
+        }
     }
 
     String.prototype.replaceAll = function(search, replacement) {
@@ -408,15 +418,21 @@
             imgViewImg.setAttribute("hidden", true);
             setTimeout(DoPreload, 200);
         }else{
-            imgViewImg.setAttribute("src", currentSrc);
+            imgViewImg.setAttribute("src", "");
             imgViewImg.removeAttribute("hidden");
             videoImg.setAttribute("hidden", true);
             videoImg.pause();
+
+            setTimeout(SetImageAfterTimeout, 1);
         }
 
         SetNewTags();
-
     }
+
+    function SetImageAfterTimeout(){
+        imgViewImg.setAttribute("src", currentSrc);
+    }
+
 
     function DoPreload(){
         var preIndex = imgIndex + 1;
