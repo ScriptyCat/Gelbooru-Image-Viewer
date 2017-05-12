@@ -255,7 +255,7 @@
         }
 
         for(i = 0; i < uniqueStringArray.length; i++){
-            var request = "/index.php?page=dapi&s=tag&q=index&names=" + uniqueStringArray[i];
+            var request = "/index.php?page=dapi&s=tag&q=index&names=" + encodeURIComponent(uniqueStringArray[i]);
             TagRequest(request);
         }
 
@@ -378,7 +378,7 @@
         var tagBar = document.getElementById("tag-sidebar");
         for(var i = tagBar.childNodes.length - 1; i >= 0 ; i--){
             let tAg = tagBar.childNodes[i];
-            if(tAg.childNodes[7].innerHTML == ""){
+            if(tAg.childNodes[7].innerHTML === ""){
                 tAg.remove();
             }
         }
@@ -393,7 +393,7 @@
         try{
             var clonedTag = tagToClone.cloneNode(true);
             tagParent.appendChild(clonedTag);
-            clonedTag.innerHTML = clonedTag.innerHTML.replaceAll(stringToReplace, tagName);
+            clonedTag.innerHTML = clonedTag.innerHTML.replaceAll(stringToReplace, encodeURIComponent(tagName));
             clonedTag.childNodes[7].innerHTML = tagName.replace(/_/g, " ");
 
             var jsonTag = tagDictionary[tagName];
@@ -402,7 +402,8 @@
             clonedTag.childNodes[9].innerHTML = jsonTag.count;
         }catch(ex){
             console.log("Failed tag: " + tagName);
-            console.log(ex);
+            //console.log(ex);
+            console.log(tagDictionary);
         }
     }
 
