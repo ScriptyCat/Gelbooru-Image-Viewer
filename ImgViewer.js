@@ -15,8 +15,7 @@
     var AutoShowImageView = false;
     var DisableImageLinks = true;
 
-
-
+    
 
     Element.prototype.remove = function() {
         this.parentElement.removeChild(this);
