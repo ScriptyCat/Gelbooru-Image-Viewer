@@ -82,15 +82,15 @@
         }
     }
 
-    function ImgClickChildParent(child, parent){
+    function ImgClickChildParent(obj, e) {
         switch (siteInfo.siteIndex) {
             case "gel+r34":
-                child = e.target.parentNode.parentNode;
-                parent = child.parentNode;
+                obj.child = e.target.parentNode.parentNode;
+                obj.parent = obj.child.parentNode;
                 break;
             case "sankaku":
-                child = e.target.parentNode.parentNode;
-                parent = child.parentNode;
+                obj.child = e.target.parentNode.parentNode;
+                obj.parent = obj.child.parentNode;
                 break;
         }
     }
@@ -99,12 +99,11 @@
         if (!imgOpened)
             ImgView();
 
-        var child, parent;
-        ImgClickChildParent(child, parent);
-        console.log(child);
+        var parentchildObj = {};
+        ImgClickChildParent(parentchildObj, e);
 
         // The equivalent of parent.children.indexOf(child)
-        imgIndex = Array.prototype.indexOf.call(parent.children, child);
+        imgIndex = Array.prototype.indexOf.call(parentchildObj.parent.children, parentchildObj.child);
         SetImg();
         imgViewBtn.scrollIntoView();
     }
@@ -116,7 +115,7 @@
     dlAllBtn.innerHTML = "Download All";
     dlAllBtn.onclick = dlAll;
 
-//imgViewBtn.setAttribute("class", "active");
+    //imgViewBtn.setAttribute("class", "active");
     buttonInsertionPoint.insertBefore(dlAllBtn, buttonInsertionPoint.childNodes[0]);
     buttonInsertionPoint.insertBefore(imgViewBtn, buttonInsertionPoint.childNodes[0]);
 
@@ -196,8 +195,12 @@
         holdDiv.appendChild(nextBtn);
 
         imgOpened = true;
-        document.getElementById("header").remove();
-        document.getElementsByClassName("header")[0].remove();
+        let header = document.getElementById("header");
+        if(header)
+            header.remove();
+        header = document.getElementsByClassName("header")[0];
+        if(header)
+            header.remove();
 
         document.addEventListener("keydown", keyInput);
         SetImg();
