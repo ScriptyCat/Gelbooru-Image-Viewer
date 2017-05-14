@@ -1,4 +1,4 @@
-## Gelbooru/Rule34 Image Viewer/Downloader
+## ImageBoard Viewer/Downloader
 
 I mean it just adds like a simple image display so you dont have to click on individual links and all that garbo.
 should work fairly well. let me know. 

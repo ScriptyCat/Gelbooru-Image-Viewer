@@ -1,9 +1,9 @@
 // ==UserScript==
-// @name         Gelbooru/Rule34xxx Viewer/Downloader
-// @version      1.15
+// @name         ImageBoard Viewer/Downloader
+// @version      1.25
 // @description  A simple quick and dirty image viewer for gelbooru.com and rule34.xxx supports all formats from gif to webm.
 // @author       PineappleLover69
-// @require      https://raw.githubusercontent.com/ScriptyCat/Gelbooru-Image-Viewer/master/Utils.js
+// @require      https://raw.githubusercontent.com/ScriptyCat/ImageBoard-Viewer/master/Utils.js
 // @include      https://gelbooru.com*
 // @include      https://rule34.xxx*
 // @include      http://rule34.xxx*
@@ -31,7 +31,10 @@
     };
 
 
+    //this group of vars is to be set by SetVars() and depends on the current website
     var buttonInsertionPoint, posts, imgList, tagEntry, tagTypeLookup, apiCallJson, tagArray, postSources;
+
+
     var tagDictionary = {};
 
     function GelbooruLayout() {
@@ -83,11 +86,20 @@
     function ImgClick(e) {
         if (!imgOpened)
             ImgView();
-        var child = e.target.parentNode.parentNode;
-        var parent = child.parentNode;
+
+        var child, parent;
+        switch (siteInfo.siteIndex){
+            case "gel+r34":
+                child = e.target.parentNode.parentNode;
+                break;
+            case "sankaku":
+                child = e.target.parentNode.parentNode;
+                break;
+        }
+        parent = child.parentNode;
+
         // The equivalent of parent.children.indexOf(child)
         imgIndex = Array.prototype.indexOf.call(parent.children, child);
-        //console.log(imgIndex);
         SetImg();
         imgViewBtn.scrollIntoView();
     }
@@ -186,40 +198,9 @@
         SetImg();
     }
 
-    if (AutoShowImageView) {
+    if (AutoShowImageView)
         ImgView();
-    }
 
-    function ImageMouseDown(e) {
-        e.preventDefault();
-        imgMouseDown = true;
-        imgDownPosX = e.screenX;
-        imgDownPosY = e.screenY;
-        imgDownHeight = Number(imgViewImg.getAttribute("height"));
-        return false;
-    }
-
-    function ImageMouseUp(e) {
-        e.preventDefault();
-        imgMouseDown = false;
-        return false;
-    }
-
-    function ImageMouseMove(e) {
-        if (imgMouseDown) {
-            e.preventDefault();
-            var moveDist = e.screenY - Number(imgDownPosY);
-            imgViewImg.setAttribute("height", imgDownHeight + moveDist * 2);
-            videoImg.setAttribute("height", imgDownHeight + moveDist * 2);
-            return false;
-        }
-    }
-
-    function ImageMouseLeave(e) {
-        e.preventDefault();
-        imgMouseDown = false;
-        return false;
-    }
 
     function BatchApiCall() {
         var urlItems = getJsonFromUrl();
@@ -314,19 +295,7 @@
         window.open(imgList[imgIndex].getAttribute("openRef"));
     }
 
-    function PrevImg() {
-        imgIndex--;
-        if (imgIndex < 0)
-            imgIndex = imgList.length - 1;
-        SetImg();
-    }
 
-    function NextImg() {
-        imgIndex++;
-        if (imgIndex >= imgList.length)
-            imgIndex = 0;
-        SetImg();
-    }
 
     function SetCurrentSrc() {
         currentSrc = GetSrcForImg(imgIndex);

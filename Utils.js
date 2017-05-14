@@ -12,6 +12,51 @@ function mergeDedupe(arr) {
     return [...new Set([].concat(...arr))];
 }
 
+function PrevImg() {
+    imgIndex--;
+    if (imgIndex < 0)
+        imgIndex = imgList.length - 1;
+    SetImg();
+}
+
+function NextImg() {
+    imgIndex++;
+    if (imgIndex >= imgList.length)
+        imgIndex = 0;
+    SetImg();
+}
+
+function ImageMouseDown(e) {
+    e.preventDefault();
+    imgMouseDown = true;
+    imgDownPosX = e.screenX;
+    imgDownPosY = e.screenY;
+    imgDownHeight = Number(imgViewImg.getAttribute("height"));
+    return false;
+}
+
+function ImageMouseUp(e) {
+    e.preventDefault();
+    imgMouseDown = false;
+    return false;
+}
+
+function ImageMouseMove(e) {
+    if (imgMouseDown) {
+        e.preventDefault();
+        var moveDist = e.screenY - Number(imgDownPosY);
+        imgViewImg.setAttribute("height", imgDownHeight + moveDist * 2);
+        videoImg.setAttribute("height", imgDownHeight + moveDist * 2);
+        return false;
+    }
+}
+
+function ImageMouseLeave(e) {
+    e.preventDefault();
+    imgMouseDown = false;
+    return false;
+}
+
 function getJsonFromUrl() {
     var query = location.search.substr(1);
     var result = {};
