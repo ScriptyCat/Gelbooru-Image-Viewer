@@ -20,51 +20,30 @@
 
     var siteInfo = {
         hostName: window.location.hostname,
+        siteIndex_: "",
         get siteIndex() {
-            if (this.hostName == "gelbooru.com" || this.hostName == "rule34.xxx") {
-                return "gel+r34";
-            } else if (this.hostName == "chan.sankakucomplex.com") {
-                return "sankaku";
+            if (!this.siteIndex_) {
+                if (this.hostName == "gelbooru.com" || this.hostName == "rule34.xxx") {
+                    this.siteIndex_ = "gel+r34";
+                } else if (this.hostName == "chan.sankakucomplex.com") {
+                    this.siteIndex_ = "sankaku";
+                }
             }
+            return this.siteIndex_;
         }
     };
 
+    var siteObj, siteSwitchObj;
+    SetUpSiteSwitchObjs();
 
     //this group of vars is to be set by SetVars() and depends on the current website
-    var buttonInsertionPoint, posts, imgList, tagEntry, tagTypeLookup, apiCallJson, tagArray, postSources;
+    var buttonInsertionPoint, posts, imgList, tagEntry, tagTypeLookup, postsJson, tagArray, postSources;
 
 
     var tagDictionary = {};
 
-    function GelbooruLayout() {
-        buttonInsertionPoint = document.getElementsByClassName("content")[0];
-        posts = document.getElementById("post-list");
-        imgList = document.getElementsByClassName("thumb");
-        tagEntry = document.getElementById("tags");
-        postSources = Array(imgList.length);
-
-        tagTypeLookup = {
-            0: "tag-type-general",
-            1: "tag-type-artist",
-            2: "tag-type-copyright",
-            3: "tag-type-copyright",
-            4: "tag-type-character"
-        };
-    }
-
-    function SetVars() {
-        switch (siteInfo.siteIndex) {
-            case "gel+r34":
-                GelbooruLayout();
-                break;
-            case "sankaku":
-                GelbooruLayout();
-                break;
-        }
-    }
-
-    SetVars();
-    BatchApiCall();
+    siteObj.SetVars();
+    BatchPostApiCall();
 
     var imgIndex = 0;
     var imgOpened = false;
@@ -82,25 +61,13 @@
         }
     }
 
-    function ImgClickChildParent(obj, e) {
-        switch (siteInfo.siteIndex) {
-            case "gel+r34":
-                obj.child = e.target.parentNode.parentNode;
-                obj.parent = obj.child.parentNode;
-                break;
-            case "sankaku":
-                obj.child = e.target.parentNode.parentNode;
-                obj.parent = obj.child.parentNode;
-                break;
-        }
-    }
 
     function ImgClick(e) {
         if (!imgOpened)
             ImgView();
 
         var parentchildObj = {};
-        ImgClickChildParent(parentchildObj, e);
+        siteObj.ImgClickGetChildAndParent(parentchildObj, e);
 
         // The equivalent of parent.children.indexOf(child)
         imgIndex = Array.prototype.indexOf.call(parentchildObj.parent.children, parentchildObj.child);
@@ -108,7 +75,7 @@
         imgViewBtn.scrollIntoView();
     }
 
-    imgViewBtn = document.createElement("button");
+    var imgViewBtn = document.createElement("button");
     imgViewBtn.innerHTML = "Image View";
     imgViewBtn.onclick = ImgView;
     var dlAllBtn = document.createElement("button");
@@ -119,14 +86,13 @@
     buttonInsertionPoint.insertBefore(dlAllBtn, buttonInsertionPoint.childNodes[0]);
     buttonInsertionPoint.insertBefore(imgViewBtn, buttonInsertionPoint.childNodes[0]);
 
-    var imgMouseDown = false;
-    var imgDownPosX, imgDownPosY, imgDownHeight = 0;
+    var imgViewImg, videoImg, preloadImg1, preloadImg2, preloadImg3, preloadImg4;
 
     function ImgView() {
         if (imgOpened)
             return;
 
-        holdDiv = document.createElement("div");
+        var holdDiv = document.createElement("div");
         holdDiv.setAttribute("align", "center");
         buttonInsertionPoint.insertBefore(holdDiv, buttonInsertionPoint.childNodes[2]);
 
@@ -196,10 +162,10 @@
 
         imgOpened = true;
         let header = document.getElementById("header");
-        if(header)
+        if (header)
             header.remove();
         header = document.getElementsByClassName("header")[0];
-        if(header)
+        if (header)
             header.remove();
 
         document.addEventListener("keydown", keyInput);
@@ -210,69 +176,30 @@
         ImgView();
 
 
-    function BatchApiCall() {
-        var urlItems = getJsonFromUrl();
-        var pid = 0;
-        if (urlItems.pid)
-            pid = urlItems.pid / 42;
-
-        var tags = tagEntry.value;
-        var limit = imgList.length;
-
-        var request = "/index.php?page=dapi&s=post&q=index&limit=" + limit + "&tags=" + tags + "&pid=" + pid;
+    function BatchPostApiCall() {
+        var apiCallObj = getJsonFromUrl();
+        siteObj.posts.PostApiSelector(apiCallObj);
 
         var xhttp = new XMLHttpRequest();
         xhttp.onreadystatechange = function () {
             if (this.readyState == 4 && this.status == 200) {
-                apiCallJson = xmlToJson(this.responseXML);
+                postsJson = xmlToJson(this.responseXML);
 
-                for (var i = 0; i < limit; i++) {
-                    if (!apiCallJson.posts.post[i])
-                        break;
-                    postSources[i] = apiCallJson.posts.post[i]["@attributes"].file_url;
-                }
+                siteObj.posts.PostSourcesSelector(apiCallObj);
 
                 CreateTagBase();
             }
         };
-        xhttp.open("GET", request, true);
+        xhttp.open("GET", apiCallObj.request, true);
         xhttp.send();
     }
 
     function CreateTagBase() {
         var uniqueTagList = [];
-        for (var i = 0; i < imgList.length; i++) {
-            var currentPost = apiCallJson.posts.post[i];
-            var tags = currentPost["@attributes"].tags;
-            var splitTags = tags.split(' ');
-
-            uniqueTagList.push(splitTags);
-        }
+        siteObj.tags.GetSplitTagsPerPost(uniqueTagList);
         uniqueTagList = mergeDedupe(uniqueTagList);
 
-        var uniqueTagString = "";
-        var uniqueStringArray = [];
-        var usCount = 0;
-        for (i = 0; i < uniqueTagList.length; i++) {
-            if (usCount === 0) {
-                uniqueTagString += uniqueTagList[i];
-            } else {
-                uniqueTagString += " " + uniqueTagList[i];
-            }
-            usCount++;
-            if (usCount > 99 || i == uniqueTagList.length - 1) {
-                usCount = 0;
-                uniqueStringArray.push(uniqueTagString);
-                uniqueTagString = "";
-            }
-        }
-
-        for (i = 0; i < uniqueStringArray.length; i++) {
-            var request = "/index.php?page=dapi&s=tag&q=index&names=" + encodeURIComponent(uniqueStringArray[i]);
-            TagRequest(request);
-        }
-
-
+        siteObj.tags.TagApiSelector(uniqueTagList);
     }
 
     function TagRequest(tagRequest) {
@@ -280,15 +207,8 @@
         xhttp.onreadystatechange = function () {
             if (this.readyState == 4 && this.status == 200) {
                 var tagPageJson = xmlToJson(this.responseXML);
-                if (!tagArray)
-                    tagArray = tagPageJson.tags.tag;
-                else
-                    tagArray = tagArray.concat(tagPageJson.tags.tag);
 
-                var tmpArray = tagPageJson.tags.tag;
-                for (i = 0; i < tmpArray.length; i++) {
-                    tagDictionary[tmpArray[i]["@attributes"].name] = tmpArray[i]["@attributes"];
-                }
+                siteObj.tags.TagDictionarySetup(tagPageJson);
 
                 if (imgOpened)
                     SetNewTags();
@@ -312,22 +232,7 @@
         if (postSources[getIndex]) {
             return postSources[getIndex];
         } else {
-            var tmpSrc = imgList[getIndex].id;
-            tmpSrc = tmpSrc.replace("s", "");
-
-            var thing = JsonHttpRequest("/index.php?page=dapi&s=post&q=index&id=" + tmpSrc.toString());
-
-            tmpSrc = thing.posts.post["@attributes"].file_url;
-            postSources[getIndex] = tmpSrc;
-            return tmpSrc;
-        }
-    }
-
-
-    function RemoveTags() {
-        var tagBar = document.getElementById("tag-sidebar");
-        for (var i = tagBar.childNodes.length - 1; i >= 1; i--) {
-            tagBar.childNodes[i].remove();
+            return siteObj.posts.SinglePostSrc(getIndex);
         }
     }
 
@@ -335,51 +240,11 @@
         if (!tagArray)
             return;
 
-        var currentPost = apiCallJson.posts.post[imgIndex];
-        var tags = currentPost["@attributes"].tags;
-        var splitTags = tags.split(' ');
-
-        RemoveTags();
-
-        var tagBar = document.getElementById("tag-sidebar");
-        var firstTag = tagBar.childNodes[0];
-        var stringToReplace = firstTag.innerHTML.substring(firstTag.innerHTML.indexOf("search=") + 7, firstTag.innerHTML.indexOf('" title="Wiki"'));
-
-        for (var i = 1; i < splitTags.length; i++) {
-            AddTag(splitTags[i], tagBar, firstTag, stringToReplace);
-        }
-        firstTag.remove();
-        RemoveEmptyTags();
+        siteObj.tags.RemoveTags();
+        siteObj.tags.AddTags();
+        siteObj.tags.RemoveEmptyTags();
     }
 
-    function RemoveEmptyTags() {
-        var tagBar = document.getElementById("tag-sidebar");
-        for (var i = tagBar.childNodes.length - 1; i >= 0; i--) {
-            let tAg = tagBar.childNodes[i];
-            if (tAg.childNodes[7].innerHTML === "") {
-                tAg.remove();
-            }
-        }
-    }
-
-
-    function AddTag(tagName, tagParent, tagToClone, stringToReplace) {
-        try {
-            var clonedTag = tagToClone.cloneNode(true);
-            tagParent.appendChild(clonedTag);
-            clonedTag.innerHTML = clonedTag.innerHTML.replaceAll(stringToReplace, encodeURIComponent(tagName));
-            clonedTag.childNodes[7].innerHTML = tagName.replace(/_/g, " ");
-
-            var jsonTag = tagDictionary[tagName];
-            var tagType = jsonTag.type;
-            clonedTag.setAttribute("class", tagTypeLookup[tagType]);
-            clonedTag.childNodes[9].innerHTML = jsonTag.count;
-        } catch (ex) {
-            console.log("Failed tag: " + tagName);
-            //console.log(ex);
-            console.log(tagDictionary);
-        }
-    }
 
     function SetImg() {
         SetCurrentSrc();
@@ -495,6 +360,203 @@
         }
     }
 
+    function SetUpSiteSwitchObjs() {
+        ///this is the object that controls what should be done for each individual website supported
+        siteSwitchObj = {
+            //the default here serves as a master obj so that code bits can be reused if certain websites
+            //use similar layouts in areas. it is based on the gelbooru design.
+            default: {
+                SetVars: function () {
+                    buttonInsertionPoint = document.getElementsByClassName("content")[0];
+                    posts = document.getElementById("post-list");
+                    imgList = document.getElementsByClassName("thumb");
+                    tagEntry = document.getElementById("tags");
+                    postSources = Array(imgList.length);
+
+                    tagTypeLookup = {
+                        0: "tag-type-general",
+                        1: "tag-type-artist",
+                        2: "tag-type-copyright",
+                        3: "tag-type-copyright",
+                        4: "tag-type-character"
+                    };
+                },
+                ImgClickGetChildAndParent: function (obj, e) {
+                    obj.child = e.target.parentNode.parentNode;
+                    obj.parent = obj.child.parentNode;
+                },
+                posts: {
+                    PostApiSelector: function (apiObj) {
+                        var pid = 0;
+                        if (apiObj.pid)
+                            pid = apiObj.pid / 42;
+                        apiObj.postLimit = imgList.length;
+                        var tags = encodeURIComponent(tagEntry.value);
+                        apiObj.request = "/index.php?page=dapi&s=post&q=index&limit=" + apiObj.postLimit + "&tags=" + tags + "&pid=" + pid;
+                    },
+                    PostSourcesSelector: function (apiObj) {
+                        for (var i = 0; i < apiObj.postLimit; i++) {
+                            if (!postsJson.posts.post[i])
+                                break;
+                            postSources[i] = postsJson.posts.post[i]["@attributes"].file_url;
+                        }
+                    },
+                    SinglePostSrc: function (getIndex) {
+                        var tmpSrc = imgList[getIndex].id;
+                        tmpSrc = tmpSrc.replace("s", "");
+
+                        var thing = JsonHttpRequest("/index.php?page=dapi&s=post&q=index&id=" + tmpSrc.toString());
+
+                        tmpSrc = thing.posts.post["@attributes"].file_url;
+                        postSources[getIndex] = tmpSrc;
+                        return tmpSrc;
+                    }
+                },
+                tags: {
+                    GetSplitTagsPerPost: function (uniqueTagList) {
+                        for (var i = 0; i < imgList.length; i++) {
+                            var currentPost = postsJson.posts.post[i];
+                            var tags = currentPost["@attributes"].tags.toLowerCase();
+                            var splitTags = tags.split(' ');
+
+                            uniqueTagList.push(splitTags);
+                        }
+                    },
+                    TagApiSelector: function (uniqueTagList) {
+                        var uniqueTagString = "";
+                        var uniqueStringArray = [];
+                        var usCount = 0;
+                        for (i = 0; i < uniqueTagList.length; i++) {
+                            if (usCount === 0) {
+                                uniqueTagString += uniqueTagList[i];
+                            } else {
+                                uniqueTagString += " " + uniqueTagList[i];
+                            }
+                            usCount++;
+                            if (usCount > 99 || i == uniqueTagList.length - 1) {
+                                usCount = 0;
+                                uniqueStringArray.push(uniqueTagString);
+                                uniqueTagString = "";
+                            }
+                        }
+
+                        for (i = 0; i < uniqueStringArray.length; i++) {
+                            var request = "/index.php?page=dapi&s=tag&q=index&names=" + encodeURIComponent(uniqueStringArray[i]);
+                            TagRequest(request);
+                        }
+                    },
+                    TagDictionarySetup: function (tagPageJson) {
+                        let tmpArray = tagPageJson.tags.tag;
+                        if (!tagArray)
+                            tagArray = tmpArray;
+                        else {
+                            tagArray = tagArray.concat(tmpArray);
+
+                        }
+                        for (i = 0; i < tmpArray.length; i++) {
+                            tagDictionary[tmpArray[i]["@attributes"].name.toLowerCase()] = tmpArray[i]["@attributes"];
+                        }
+                    },
+                    AddTag: function (tagName, tagParent, tagToClone, stringToReplace) {
+                        try {
+                            var clonedTag = tagToClone.cloneNode(true);
+                            tagParent.appendChild(clonedTag);
+                            clonedTag.innerHTML = clonedTag.innerHTML.replaceAll(stringToReplace, encodeURIComponent(tagName));
+                            clonedTag.childNodes[7].innerHTML = tagName.replace(/_/g, " ");
+
+                            var jsonTag = tagDictionary[tagName];
+                            var tagType = jsonTag.type;
+                            clonedTag.setAttribute("class", tagTypeLookup[tagType]);
+                            clonedTag.childNodes[9].innerHTML = jsonTag.count;
+                        } catch (ex) {
+                            console.log("Failed tag: " + tagName);
+                            console.log(ex);
+                            console.log(tagDictionary);
+                        }
+                    },
+                    AddTags: function () {
+                        var currentPost = postsJson.posts.post[imgIndex];
+                        var tags = currentPost["@attributes"].tags;
+                        var splitTags = tags.split(' ');
+
+                        var tagBar = document.getElementById("tag-sidebar");
+                        var firstTag = tagBar.childNodes[0];
+                        var stringToReplace = firstTag.innerHTML.substring(firstTag.innerHTML.indexOf("search=") + 7, firstTag.innerHTML.indexOf('" title="Wiki"'));
+
+                        for (var i = 1; i < splitTags.length; i++) {
+                            this.AddTag(splitTags[i], tagBar, firstTag, stringToReplace)
+                        }
+
+                        firstTag.remove();
+                    },
+                    RemoveTags: function () {
+                        var tagBar = document.getElementById("tag-sidebar");
+                        for (var i = tagBar.childNodes.length - 1; i >= 1; i--) {
+                            tagBar.childNodes[i].remove();
+                        }
+                    },
+                    RemoveEmptyTags: function () {
+                        var tagBar = document.getElementById("tag-sidebar");
+                        for (var i = tagBar.childNodes.length - 1; i >= 0; i--) {
+                            let tAg = tagBar.childNodes[i];
+                            if (tAg.childNodes[7].innerHTML === "") {
+                                tAg.remove();
+                            }
+                        }
+                    }
+                }
+            },
+
+            //this setup for gelbooru and r34 uses all the default calls
+            "gel+r34": {
+                SetVars: function () {
+                    siteSwitchObj.default.SetVars();
+                },
+                ImgClickGetChildAndParent: function (obj, e) {
+                    siteSwitchObj.default.ImgClickGetChildAndParent(obj, e);
+                },
+                posts: {
+                    PostApiSelector: function (apiObj) {
+                        siteSwitchObj.default.posts.PostApiSelector(apiObj);
+                    },
+                    PostSourcesSelector: function (apiObj) {
+                        siteSwitchObj.default.posts.PostSourcesSelector(apiObj);
+                    },
+                    SinglePostSrc: function (getIndex) {
+                        return siteSwitchObj.default.posts.SinglePostSrc(getIndex);
+                    }
+                },
+                tags: {
+                    GetSplitTagsPerPost: function (uniqueTagList) {
+                        siteSwitchObj.default.tags.GetSplitTagsPerPost(uniqueTagList);
+                    },
+                    TagApiSelector: function (uniqueTagList) {
+                        siteSwitchObj.default.tags.TagApiSelector(uniqueTagList);
+                    },
+                    TagDictionarySetup: function (tagPageJson) {
+                        siteSwitchObj.default.tags.TagDictionarySetup(tagPageJson);
+                    },
+                    RemoveTags: function () {
+                        siteSwitchObj.default.tags.RemoveTags();
+                    },
+                    AddTag: function (tagName, tagParent, tagToClone, stringToReplace) {
+                        siteSwitchObj.default.tags.AddTag(tagName, tagParent, tagToClone, stringToReplace);
+                    },
+                    AddTags: function () {
+                        siteSwitchObj.default.tags.AddTags();
+                    },
+                    RemoveEmptyTags: function () {
+                        siteSwitchObj.default.tags.RemoveEmptyTags();
+                    }
+                }
+            },
+            "sankaku": {}
+        };
+
+        siteObj = siteSwitchObj[siteInfo.siteIndex];
+    }
+
+
     //----------everything below here is either utility or is pretty set in stone-------------------
 
     Element.prototype.remove = function () {
@@ -502,9 +564,14 @@
             this.parentElement.removeChild(this);
     };
 
+    //String.prototype.replaceAll = function (search, replacement) {
+    //    var target = this;
+    //    return target.replace(new RegExp(search, 'g'), replacement);
+    //};
+
     String.prototype.replaceAll = function (search, replacement) {
         var target = this;
-        return target.replace(new RegExp(search, 'g'), replacement);
+        return target.split(search).join(replacement);
     };
 
     function mergeDedupe(arr) {
@@ -524,6 +591,9 @@
             imgIndex = 0;
         SetImg();
     }
+
+    var imgMouseDown = false;
+    var imgDownPosX, imgDownPosY, imgDownHeight = 0;
 
     function ImageMouseDown(e) {
         e.preventDefault();
