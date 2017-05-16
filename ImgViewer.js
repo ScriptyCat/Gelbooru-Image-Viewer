@@ -1,11 +1,10 @@
 // ==UserScript==
 // @name         ImageBoard Viewer/Downloader
-// @version      1.3
+// @version      1.31
 // @description  A simple quick and dirty image viewer for gelbooru.com and rule34.xxx supports all formats from gif to webm.
 // @author       PineappleLover69
 // @include      https://gelbooru.com*
 // @include      https://rule34.xxx*
-// @include      http://rule34.xxx*
 
 // ==/UserScript==
 
@@ -17,23 +16,7 @@
     var AutoShowImageView = false;
     var DisableImageLinks = true;
 
-
-    var siteInfo = {
-        hostName: window.location.hostname,
-        siteIndex_: "",
-        get siteIndex() {
-            if (!this.siteIndex_) {
-                if (this.hostName == "gelbooru.com" || this.hostName == "rule34.xxx") {
-                    this.siteIndex_ = "gel+r34";
-                } else if (this.hostName == "chan.sankakucomplex.com") {
-                    this.siteIndex_ = "sankaku";
-                }
-            }
-            return this.siteIndex_;
-        }
-    };
-
-    var siteObj, siteSwitchObj;
+    var siteObj, defaultSiteObject;
     SetUpSiteSwitchObjs();
 
     //this group of vars is to be set by SetVars() and depends on the current website
@@ -195,7 +178,7 @@
     }
 
     function CreateTagBase() {
-        var uniqueTagList = [];
+        let uniqueTagList = [];
         siteObj.tags.GetSplitTagsPerPost(uniqueTagList);
         uniqueTagList = mergeDedupe(uniqueTagList);
 
@@ -203,10 +186,10 @@
     }
 
     function TagRequest(tagRequest) {
-        var xhttp = new XMLHttpRequest();
+        let xhttp = new XMLHttpRequest();
         xhttp.onreadystatechange = function () {
             if (this.readyState == 4 && this.status == 200) {
-                var tagPageJson = xmlToJson(this.responseXML);
+                let tagPageJson = xmlToJson(this.responseXML);
 
                 siteObj.tags.TagDictionarySetup(tagPageJson);
 
@@ -362,198 +345,187 @@
 
     function SetUpSiteSwitchObjs() {
         ///this is the object that controls what should be done for each individual website supported
-        siteSwitchObj = {
+        defaultSiteObject = {
             //the default here serves as a master obj so that code bits can be reused if certain websites
             //use similar layouts in areas. it is based on the gelbooru design.
-            default: {
-                SetVars: function () {
-                    buttonInsertionPoint = document.getElementsByClassName("content")[0];
-                    posts = document.getElementById("post-list");
-                    imgList = document.getElementsByClassName("thumb");
-                    tagEntry = document.getElementById("tags");
-                    postSources = Array(imgList.length);
 
-                    tagTypeLookup = {
-                        0: "tag-type-general",
-                        1: "tag-type-artist",
-                        2: "tag-type-copyright",
-                        3: "tag-type-copyright",
-                        4: "tag-type-character"
-                    };
+            SetVars: function () {
+                buttonInsertionPoint = document.getElementsByClassName("content")[0];
+                posts = document.getElementById("post-list");
+                imgList = document.getElementsByClassName("thumb");
+                tagEntry = document.getElementById("tags");
+                postSources = Array(imgList.length);
+
+                tagTypeLookup = {
+                    0: "tag-type-general",
+                    1: "tag-type-artist",
+                    2: "tag-type-copyright",
+                    3: "tag-type-copyright",
+                    4: "tag-type-character"
+                };
+            },
+            ImgClickGetChildAndParent: function (obj, e) {
+                obj.child = e.target.parentNode.parentNode;
+                obj.parent = obj.child.parentNode;
+            },
+            posts: {
+                PostApiSelector: function (apiObj) {
+                    var pid = 0;
+                    apiObj.postLimit = 42;
+                    if (apiObj.pid) {
+                        pid = apiObj.pid / apiObj.postLimit;
+                    }
+                    var tags = encodeURIComponent(tagEntry.value);
+                    apiObj.request = "/index.php?page=dapi&s=post&q=index&limit=" + apiObj.postLimit + "&tags=" + tags + "&pid=" + pid;
                 },
-                ImgClickGetChildAndParent: function (obj, e) {
-                    obj.child = e.target.parentNode.parentNode;
-                    obj.parent = obj.child.parentNode;
-                },
-                posts: {
-                    PostApiSelector: function (apiObj) {
-                        var pid = 0;
-                        if (apiObj.pid)
-                            pid = apiObj.pid / 42;
-                        apiObj.postLimit = imgList.length;
-                        var tags = encodeURIComponent(tagEntry.value);
-                        apiObj.request = "/index.php?page=dapi&s=post&q=index&limit=" + apiObj.postLimit + "&tags=" + tags + "&pid=" + pid;
-                    },
-                    PostSourcesSelector: function (apiObj) {
-                        for (var i = 0; i < apiObj.postLimit; i++) {
-                            if (!postsJson.posts.post[i])
-                                break;
-                            postSources[i] = postsJson.posts.post[i]["@attributes"].file_url;
-                        }
-                    },
-                    SinglePostSrc: function (getIndex) {
-                        var tmpSrc = imgList[getIndex].id;
-                        tmpSrc = tmpSrc.replace("s", "");
-
-                        var thing = JsonHttpRequest("/index.php?page=dapi&s=post&q=index&id=" + tmpSrc.toString());
-
-                        tmpSrc = thing.posts.post["@attributes"].file_url;
-                        postSources[getIndex] = tmpSrc;
-                        return tmpSrc;
+                PostSourcesSelector: function (apiObj) {
+                    for (var i = 0; i < apiObj.postLimit; i++) {
+                        if (!postsJson.posts.post[i])
+                            break;
+                        postSources[i] = postsJson.posts.post[i]["@attributes"].file_url;
                     }
                 },
-                tags: {
-                    GetSplitTagsPerPost: function (uniqueTagList) {
-                        for (var i = 0; i < imgList.length; i++) {
-                            var currentPost = postsJson.posts.post[i];
-                            var tags = currentPost["@attributes"].tags.toLowerCase();
-                            var splitTags = tags.split(' ');
+                SinglePostSrc: function (getIndex) {
+                    var tmpSrc = imgList[getIndex].id;
+                    tmpSrc = tmpSrc.replace("s", "");
 
-                            uniqueTagList.push(splitTags);
-                        }
-                    },
-                    TagApiSelector: function (uniqueTagList) {
-                        var uniqueTagString = "";
-                        var uniqueStringArray = [];
-                        var usCount = 0;
-                        for (i = 0; i < uniqueTagList.length; i++) {
-                            if (usCount === 0) {
-                                uniqueTagString += uniqueTagList[i];
-                            } else {
-                                uniqueTagString += " " + uniqueTagList[i];
-                            }
-                            usCount++;
-                            if (usCount > 99 || i == uniqueTagList.length - 1) {
-                                usCount = 0;
-                                uniqueStringArray.push(uniqueTagString);
-                                uniqueTagString = "";
-                            }
-                        }
+                    var thing = JsonHttpRequest("/index.php?page=dapi&s=post&q=index&id=" + tmpSrc.toString());
 
-                        for (i = 0; i < uniqueStringArray.length; i++) {
-                            var request = "/index.php?page=dapi&s=tag&q=index&names=" + encodeURIComponent(uniqueStringArray[i]);
-                            TagRequest(request);
-                        }
-                    },
-                    TagDictionarySetup: function (tagPageJson) {
-                        let tmpArray = tagPageJson.tags.tag;
-                        if (!tagArray)
-                            tagArray = tmpArray;
-                        else {
-                            tagArray = tagArray.concat(tmpArray);
-
-                        }
-                        for (i = 0; i < tmpArray.length; i++) {
-                            tagDictionary[tmpArray[i]["@attributes"].name.toLowerCase()] = tmpArray[i]["@attributes"];
-                        }
-                    },
-                    AddTag: function (tagName, tagParent, tagToClone, stringToReplace) {
-                        try {
-                            var clonedTag = tagToClone.cloneNode(true);
-                            tagParent.appendChild(clonedTag);
-                            clonedTag.innerHTML = clonedTag.innerHTML.replaceAll(stringToReplace, encodeURIComponent(tagName));
-                            clonedTag.childNodes[7].innerHTML = tagName.replace(/_/g, " ");
-
-                            var jsonTag = tagDictionary[tagName];
-                            var tagType = jsonTag.type;
-                            clonedTag.setAttribute("class", tagTypeLookup[tagType]);
-                            clonedTag.childNodes[9].innerHTML = jsonTag.count;
-                        } catch (ex) {
-                            console.log("Failed tag: " + tagName);
-                            console.log(ex);
-                            console.log(tagDictionary);
-                        }
-                    },
-                    AddTags: function () {
-                        var currentPost = postsJson.posts.post[imgIndex];
-                        var tags = currentPost["@attributes"].tags;
+                    tmpSrc = thing.posts.post["@attributes"].file_url;
+                    postSources[getIndex] = tmpSrc;
+                    return tmpSrc;
+                }
+            },
+            tags: {
+                GetSplitTagsPerPost: function (uniqueTagList) {
+                    for (var i = 0; i < imgList.length; i++) {
+                        var currentPost = postsJson.posts.post[i];
+                        var tags = currentPost["@attributes"].tags.toLowerCase();
                         var splitTags = tags.split(' ');
 
-                        var tagBar = document.getElementById("tag-sidebar");
-                        var firstTag = tagBar.childNodes[0];
-                        var stringToReplace = firstTag.innerHTML.substring(firstTag.innerHTML.indexOf("search=") + 7, firstTag.innerHTML.indexOf('" title="Wiki"'));
-
-                        for (var i = 1; i < splitTags.length; i++) {
-                            this.AddTag(splitTags[i], tagBar, firstTag, stringToReplace)
+                        uniqueTagList.push(splitTags);
+                    }
+                },
+                TagApiSelector: function (uniqueTagList) {
+                    var uniqueTagString = "";
+                    var uniqueStringArray = [];
+                    var usCount = 0;
+                    for (i = 0; i < uniqueTagList.length; i++) {
+                        if (usCount === 0) {
+                            uniqueTagString += uniqueTagList[i];
+                        } else {
+                            uniqueTagString += " " + uniqueTagList[i];
                         }
-
-                        firstTag.remove();
-                    },
-                    RemoveTags: function () {
-                        var tagBar = document.getElementById("tag-sidebar");
-                        for (var i = tagBar.childNodes.length - 1; i >= 1; i--) {
-                            tagBar.childNodes[i].remove();
+                        usCount++;
+                        if (usCount > 99 || i == uniqueTagList.length - 1) {
+                            usCount = 0;
+                            uniqueStringArray.push(uniqueTagString);
+                            uniqueTagString = "";
                         }
-                    },
-                    RemoveEmptyTags: function () {
-                        var tagBar = document.getElementById("tag-sidebar");
-                        for (var i = tagBar.childNodes.length - 1; i >= 0; i--) {
-                            let tAg = tagBar.childNodes[i];
-                            if (tAg.childNodes[7].innerHTML === "") {
-                                tAg.remove();
-                            }
+                    }
+
+                    for (i = 0; i < uniqueStringArray.length; i++) {
+                        let request = "/index.php?page=dapi&s=tag&q=index&names=" + encodeURIComponent(uniqueStringArray[i]);
+                        TagRequest(request);
+                    }
+                },
+                TagDictionarySetup: function (tagsJson) {
+
+                    let tmpArray = tagsJson.tags.tag;
+                    if (!tagArray)
+                        tagArray = tmpArray;
+                    else {
+                        tagArray = tagArray.concat(tmpArray);
+
+                    }
+
+                    for (i = 0; i < tmpArray.length; i++) {
+                        tagDictionary[tmpArray[i]["@attributes"].name.toLowerCase()] = tmpArray[i]["@attributes"];
+                    }
+                },
+                AddTag: function (tagName, tagParent, tagToClone, stringToReplace) {
+                    try {
+                        var clonedTag = tagToClone.cloneNode(true);
+                        tagParent.appendChild(clonedTag);
+                        clonedTag.innerHTML = clonedTag.innerHTML.replaceAll(stringToReplace, encodeURIComponent(tagName));
+                        let nodeIndex = (window.location.hostname == "rule34.xxx") ? 4 : 7;
+                        clonedTag.childNodes[nodeIndex].innerHTML = tagName.replace(/_/g, " ");
+
+                        var jsonTag = tagDictionary[tagName];
+                        var tagType = jsonTag.type;
+                        clonedTag.setAttribute("class", tagTypeLookup[tagType]);
+                        clonedTag.childNodes[nodeIndex + 2].innerHTML = jsonTag.count;
+                    } catch (ex) {
+                        console.log("Failed tag: " + tagName);
+                        console.log(ex);
+                        console.log(tagDictionary);
+                    }
+                },
+                AddTags: function () {
+                    let currentPost = postsJson.posts.post[imgIndex];
+                    let tags = currentPost["@attributes"].tags;
+                    let splitTags = tags.split(' ');
+
+                    let tagBar = document.getElementById("tag-sidebar");
+                    let firstTag = tagBar.childNodes[0];
+                    //let stringToReplace = firstTag.innerHTML.substring(firstTag.innerHTML.lastIndexOf("tags=") + 5, firstTag.innerHTML.lastIndexOf('</a>') - 3);
+                    let nodeIndex = (window.location.hostname == "rule34.xxx") ? 4 : 7;
+                    let stringToReplace = encodeURIComponent(firstTag.childNodes[nodeIndex].innerHTML);
+
+                    for (let i = 1; i < splitTags.length; i++) {
+                        this.AddTag(splitTags[i], tagBar, firstTag, stringToReplace);
+                    }
+
+                    firstTag.remove();
+                },
+                RemoveTags: function () {
+                    let tagBar = document.getElementById("tag-sidebar");
+                    if (tagBar.childNodes[0].innerHTML === undefined) {
+                        //console.log(tagBar.childNodes[0]);
+                        //console.log(tagBar.childNodes[1]);
+                        tagBar.childNodes[0].remove();
+                    }
+                    for (let i = tagBar.childNodes.length - 1; i >= 1; i--) {
+                        tagBar.childNodes[i].remove();
+                    }
+                },
+                RemoveEmptyTags: function () {
+                    let tagBar = document.getElementById("tag-sidebar");
+                    for (let i = tagBar.childNodes.length - 1; i >= 0; i--) {
+                        let tAg = tagBar.childNodes[i];
+                        if (tAg.childNodes[5].innerHTML === "" || tAg.childNodes[7].innerHTML === "") {
+                            tAg.remove();
                         }
                     }
                 }
-            },
-
-            //this setup for gelbooru and r34 uses all the default calls
-            "gel+r34": {
-                SetVars: function () {
-                    siteSwitchObj.default.SetVars();
-                },
-                ImgClickGetChildAndParent: function (obj, e) {
-                    siteSwitchObj.default.ImgClickGetChildAndParent(obj, e);
-                },
-                posts: {
-                    PostApiSelector: function (apiObj) {
-                        siteSwitchObj.default.posts.PostApiSelector(apiObj);
-                    },
-                    PostSourcesSelector: function (apiObj) {
-                        siteSwitchObj.default.posts.PostSourcesSelector(apiObj);
-                    },
-                    SinglePostSrc: function (getIndex) {
-                        return siteSwitchObj.default.posts.SinglePostSrc(getIndex);
-                    }
-                },
-                tags: {
-                    GetSplitTagsPerPost: function (uniqueTagList) {
-                        siteSwitchObj.default.tags.GetSplitTagsPerPost(uniqueTagList);
-                    },
-                    TagApiSelector: function (uniqueTagList) {
-                        siteSwitchObj.default.tags.TagApiSelector(uniqueTagList);
-                    },
-                    TagDictionarySetup: function (tagPageJson) {
-                        siteSwitchObj.default.tags.TagDictionarySetup(tagPageJson);
-                    },
-                    RemoveTags: function () {
-                        siteSwitchObj.default.tags.RemoveTags();
-                    },
-                    AddTag: function (tagName, tagParent, tagToClone, stringToReplace) {
-                        siteSwitchObj.default.tags.AddTag(tagName, tagParent, tagToClone, stringToReplace);
-                    },
-                    AddTags: function () {
-                        siteSwitchObj.default.tags.AddTags();
-                    },
-                    RemoveEmptyTags: function () {
-                        siteSwitchObj.default.tags.RemoveEmptyTags();
-                    }
-                }
-            },
-            "sankaku": {}
+            }
         };
 
-        siteObj = siteSwitchObj[siteInfo.siteIndex];
+        //siteObj = JSON.parse(JSON.stringify(defaultSiteObject));
+        siteObj = cloneObject(defaultSiteObject);
+
+        switch (window.location.hostname) {
+            case "rule34.xxx":
+
+                break;
+
+
+            case "chan.sankakucomplex.com":
+                break;
+        }
+    }
+
+    function cloneObject(obj) {
+        if (obj === null || typeof obj !== 'object') {
+            return obj;
+        }
+
+        let temp = obj.constructor(); // give temp the original obj's constructor
+        for (let key in obj) {
+            temp[key] = cloneObject(obj[key]);
+        }
+
+        return temp;
     }
 
 
