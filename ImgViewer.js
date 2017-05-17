@@ -1,10 +1,11 @@
 // ==UserScript==
 // @name         ImageBoard Viewer/Downloader
-// @version      1.31
+// @version      1.35
 // @description  A simple quick and dirty image viewer for gelbooru.com and rule34.xxx supports all formats from gif to webm.
 // @author       PineappleLover69
 // @include      https://gelbooru.com*
 // @include      https://rule34.xxx*
+// @include      https://danbooru.donmai*
 
 // ==/UserScript==
 
@@ -17,6 +18,7 @@
     var DisableImageLinks = true;
 
     var siteObj, defaultSiteObject;
+    siteObj = siteObj;
     SetUpSiteSwitchObjs();
 
     //this group of vars is to be set by SetVars() and depends on the current website
@@ -26,7 +28,7 @@
     var tagDictionary = {};
 
     siteObj.SetVars();
-    BatchPostApiCall();
+    siteObj.posts.BatchPostApiCall();
 
     var imgIndex = 0;
     var imgOpened = false;
@@ -143,6 +145,8 @@
         holdDiv.appendChild(spacer3);
         holdDiv.appendChild(nextBtn);
 
+        siteObj.posts.OnImgView();
+
         imgOpened = true;
         let header = document.getElementById("header");
         if (header)
@@ -157,33 +161,6 @@
 
     if (AutoShowImageView)
         ImgView();
-
-
-    function BatchPostApiCall() {
-        var apiCallObj = getJsonFromUrl();
-        siteObj.posts.PostApiSelector(apiCallObj);
-
-        var xhttp = new XMLHttpRequest();
-        xhttp.onreadystatechange = function () {
-            if (this.readyState == 4 && this.status == 200) {
-                postsJson = xmlToJson(this.responseXML);
-
-                siteObj.posts.PostSourcesSelector(apiCallObj);
-
-                CreateTagBase();
-            }
-        };
-        xhttp.open("GET", apiCallObj.request, true);
-        xhttp.send();
-    }
-
-    function CreateTagBase() {
-        let uniqueTagList = [];
-        siteObj.tags.GetSplitTagsPerPost(uniqueTagList);
-        uniqueTagList = mergeDedupe(uniqueTagList);
-
-        siteObj.tags.TagApiSelector(uniqueTagList);
-    }
 
     function TagRequest(tagRequest) {
         let xhttp = new XMLHttpRequest();
@@ -355,6 +332,8 @@
                 imgList = document.getElementsByClassName("thumb");
                 tagEntry = document.getElementById("tags");
                 postSources = Array(imgList.length);
+                siteObj.posts.RemoveTextFillerElements();
+
 
                 tagTypeLookup = {
                     0: "tag-type-general",
@@ -368,44 +347,131 @@
                 obj.child = e.target.parentNode.parentNode;
                 obj.parent = obj.child.parentNode;
             },
+            GetObjectProperty: function (obj, propName) {
+                return obj["@attributes"][propName];
+            },
             posts: {
+                postIdReplaceChar: "s",
+                postLimit: 42,
+                postPageIdName: "pid",
+                postLimitName: "limit",
+                postTagsName: "tags",
+                postIdName: "id",
+                postFileUrlName: "file_url",
+                postApiEndpoint: "/index.php?page=dapi&s=post&q=index",
+                addSiteNameToFileUrl: false,
+                OnImgView: function () {
+
+                },
+                RemoveTextFillerElements: function () {
+                    for (let i = 0; i < imgList.length;) {
+                        if (imgList[i].tagName === undefined) {
+                            imgList[i].remove();
+                        } else {
+                            i++;
+                        }
+                    }
+                },
+                BatchPostApiCall: function () {
+                    var apiCallObj = getJsonFromUrl();
+                    siteObj.posts.PostApiSelector(apiCallObj);
+
+                    var xhttp = new XMLHttpRequest();
+
+                    xhttp.onreadystatechange = function () {
+                        if (this.readyState == 4 && this.status == 200) {
+                            postsJson = xmlToJson(this.responseXML);
+
+                            siteObj.posts.PostSourcesSelector(apiCallObj);
+
+                            siteObj.tags.CreateTagBase();
+                        }
+                    };
+                    xhttp.open("GET", apiCallObj.request, true);
+                    xhttp.send();
+                },
+                HandlePageId: function (value) {
+                    return value / this.postLimit;
+                },
                 PostApiSelector: function (apiObj) {
                     var pid = 0;
-                    apiObj.postLimit = 42;
-                    if (apiObj.pid) {
-                        pid = apiObj.pid / apiObj.postLimit;
+                    apiObj.postLimit = this.postLimit;
+                    if (apiObj[this.postPageIdName]) {
+                        pid = this.HandlePageId(apiObj[this.postPageIdName]);
                     }
                     var tags = encodeURIComponent(tagEntry.value);
-                    apiObj.request = "/index.php?page=dapi&s=post&q=index&limit=" + apiObj.postLimit + "&tags=" + tags + "&pid=" + pid;
+                    apiObj.request = this.postApiEndpoint + "&" + this.postLimitName + "=" + apiObj.postLimit
+                    + "&" + this.postTagsName + "=" + tags + "&" + this.postPageIdName + "=" + pid;
+                },
+                PostsJsonGetPost: function (index) {
+                    let tmpPost = postsJson.posts.post[index];
+                    return tmpPost;
                 },
                 PostSourcesSelector: function (apiObj) {
-                    for (var i = 0; i < apiObj.postLimit; i++) {
-                        if (!postsJson.posts.post[i])
+                    for (let i = 0; i < apiObj.postLimit;) {
+                        let tmpPost = siteObj.posts.PostsJsonGetPost(i);
+                        if (!tmpPost)
                             break;
-                        postSources[i] = postsJson.posts.post[i]["@attributes"].file_url;
+                        let tmpId = imgList[i].id;
+                        tmpId = tmpId.replace(this.postIdReplaceChar, "");
+
+                        if (siteObj.GetObjectProperty(tmpPost, "id") != tmpId) {
+                            imgList[i].remove();
+                            imgList[imgList.length - 1].remove();
+                            apiObj.postLimit -= 2;
+
+                            console.log("removed 2: " + apiObj.postLimit + " : " + imgList.length);
+                        } else {
+                            postSources[i] = siteObj.GetObjectProperty(tmpPost, this.postFileUrlName);
+                            if (siteObj.posts.addSiteNameToFileUrl)
+                                postSources[i] = window.location.hostname + postSources[i];
+                            i++;
+                        }
                     }
                 },
+                GetSinglePostApiRequest: function(tmpId){
+                    let request = JsonHttpRequest(this.postApiEndpoint + "&" + this.postIdName + "=" + tmpId.toString());
+                    return siteObj.GetObjectProperty(request, this.postFileUrlName);
+                },
                 SinglePostSrc: function (getIndex) {
-                    var tmpSrc = imgList[getIndex].id;
-                    tmpSrc = tmpSrc.replace("s", "");
+                    var tmpId = imgList[getIndex][this.postIdName];
+                    tmpId = tmpId.replace(this.postIdReplaceChar, "");
+                    var tmpSrc = siteObj.posts.GetSinglePostApiRequest(tmpId);
 
-                    var thing = JsonHttpRequest("/index.php?page=dapi&s=post&q=index&id=" + tmpSrc.toString());
-
-                    tmpSrc = thing.posts.post["@attributes"].file_url;
                     postSources[getIndex] = tmpSrc;
                     return tmpSrc;
                 }
             },
             tags: {
+                tagApiEndpoint: "/index.php?page=dapi&s=tag&q=index&names=",
+                maxTagApiCount: 99,
+                logTagErrors: true,
+                tagApiSplitChar: " ",
+                tagsSplitChar: " ",
+                tagsPropertyName: "tags",
+                tagCategoryPropertyName: "type",
+                tagCountPropertyName: "count",
+                tagNamePropertyName: "name",
+                GetTagSidebarElement:function(){
+                    return document.getElementById("tag-sidebar");
+                },
+                CreateTagBase: function () {
+                    let uniqueTagList = [];
+                    siteObj.tags.GetSplitTagsPerPost(uniqueTagList);
+                    uniqueTagList = mergeDedupe(uniqueTagList);
+
+                    siteObj.tags.TagApiSelector(uniqueTagList);
+                },
                 GetSplitTagsPerPost: function (uniqueTagList) {
                     for (var i = 0; i < imgList.length; i++) {
-                        var currentPost = postsJson.posts.post[i];
-                        var tags = currentPost["@attributes"].tags.toLowerCase();
-                        var splitTags = tags.split(' ');
+                        var currentPost = siteObj.posts.PostsJsonGetPost(i);
+                        var tags = siteObj.GetObjectProperty(currentPost, this.tagsPropertyName).toLowerCase();
+                        var splitTags = tags.split(this.tagsSplitChar);
 
                         uniqueTagList.push(splitTags);
                     }
                 },
+
                 TagApiSelector: function (uniqueTagList) {
                     var uniqueTagString = "";
                     var uniqueStringArray = [];
@@ -414,10 +480,10 @@
                         if (usCount === 0) {
                             uniqueTagString += uniqueTagList[i];
                         } else {
-                            uniqueTagString += " " + uniqueTagList[i];
+                            uniqueTagString += this.tagApiSplitChar + uniqueTagList[i];
                         }
                         usCount++;
-                        if (usCount > 99 || i == uniqueTagList.length - 1) {
+                        if (usCount > this.maxTagApiCount || i == uniqueTagList.length - 1) {
                             usCount = 0;
                             uniqueStringArray.push(uniqueTagString);
                             uniqueTagString = "";
@@ -425,64 +491,89 @@
                     }
 
                     for (i = 0; i < uniqueStringArray.length; i++) {
-                        let request = "/index.php?page=dapi&s=tag&q=index&names=" + encodeURIComponent(uniqueStringArray[i]);
+                        let request = this.tagApiEndpoint + encodeURIComponent(uniqueStringArray[i]);
                         TagRequest(request);
                     }
                 },
+                GetTagJsonArray: function(tagJson){
+                    return tagJson.tags.tag;
+                },
                 TagDictionarySetup: function (tagsJson) {
-
-                    let tmpArray = tagsJson.tags.tag;
+                    let tmpArray = siteObj.tags.GetTagJsonArray(tagsJson);
                     if (!tagArray)
                         tagArray = tmpArray;
                     else {
                         tagArray = tagArray.concat(tmpArray);
-
                     }
 
                     for (i = 0; i < tmpArray.length; i++) {
-                        tagDictionary[tmpArray[i]["@attributes"].name.toLowerCase()] = tmpArray[i]["@attributes"];
+                        tagDictionary[siteObj.GetObjectProperty(tmpArray[i], this.tagNamePropertyName).toLowerCase()] = tmpArray[i];
                     }
+                },
+                GetNodeIndex: function(){
+                    return(window.location.hostname == "rule34.xxx") ? 4 : 7;
+                },
+                TagCountFormatter: function(count){
+                    var nCount = Number(count);
+                    return nCount;
+                },
+                TagCloneNameSetter: function(tagClone, tagName){
+                    let nodeIndex = siteObj.tags.GetNodeIndex();
+                    tagClone.childNodes[nodeIndex].innerHTML = tagName.replace(/_/g, " ");
+                },
+                TagCloneCountSetter: function(tagClone, tagCount){
+                    let nodeIndex = siteObj.tags.GetNodeIndex();
+                    tagClone.childNodes[nodeIndex + 2].innerHTML = siteObj.tags.TagCountFormatter(tagCount);
                 },
                 AddTag: function (tagName, tagParent, tagToClone, stringToReplace) {
                     try {
                         var clonedTag = tagToClone.cloneNode(true);
                         tagParent.appendChild(clonedTag);
+                        clonedTag.innerHTML = clonedTag.innerHTML.replaceAll("class=", "cla$$=");
                         clonedTag.innerHTML = clonedTag.innerHTML.replaceAll(stringToReplace, encodeURIComponent(tagName));
-                        let nodeIndex = (window.location.hostname == "rule34.xxx") ? 4 : 7;
-                        clonedTag.childNodes[nodeIndex].innerHTML = tagName.replace(/_/g, " ");
+                        clonedTag.innerHTML = clonedTag.innerHTML.replaceAll("cla$$=", "class=");
+
+                        siteObj.tags.TagCloneNameSetter(clonedTag, tagName);
 
                         var jsonTag = tagDictionary[tagName];
-                        var tagType = jsonTag.type;
+                        var tagType = siteObj.GetObjectProperty(jsonTag, this.tagCategoryPropertyName);
+                        var tagCount = siteObj.GetObjectProperty(jsonTag, this.tagCountPropertyName);
+
                         clonedTag.setAttribute("class", tagTypeLookup[tagType]);
-                        clonedTag.childNodes[nodeIndex + 2].innerHTML = jsonTag.count;
+                        siteObj.tags.TagCloneCountSetter(clonedTag, tagCount);
                     } catch (ex) {
-                        console.log("Failed tag: " + tagName);
-                        console.log(ex);
-                        console.log(tagDictionary);
+                        if (this.logTagErrors) {
+                            console.log("Failed tag: " + tagName);
+                            console.log(ex);
+                            console.log(tagDictionary);
+                        }
                     }
                 },
+                FindStringToReplace: function(tag){
+                    let nodeIndex = siteObj.tags.GetNodeIndex();
+                    return encodeURIComponent(tag.childNodes[nodeIndex].innerHTML);
+                },
                 AddTags: function () {
-                    let currentPost = postsJson.posts.post[imgIndex];
-                    let tags = currentPost["@attributes"].tags;
-                    let splitTags = tags.split(' ');
+                    let currentPost = siteObj.posts.PostsJsonGetPost(imgIndex);
+                    let tags = siteObj.GetObjectProperty(currentPost, this.tagsPropertyName);
+                    let splitTags = tags.split(this.tagsSplitChar);
 
-                    let tagBar = document.getElementById("tag-sidebar");
+                    let tagBar = siteObj.tags.GetTagSidebarElement();
+
                     let firstTag = tagBar.childNodes[0];
+
                     //let stringToReplace = firstTag.innerHTML.substring(firstTag.innerHTML.lastIndexOf("tags=") + 5, firstTag.innerHTML.lastIndexOf('</a>') - 3);
-                    let nodeIndex = (window.location.hostname == "rule34.xxx") ? 4 : 7;
-                    let stringToReplace = encodeURIComponent(firstTag.childNodes[nodeIndex].innerHTML);
+                    let stringToReplace = siteObj.tags.FindStringToReplace(firstTag);
 
                     for (let i = 1; i < splitTags.length; i++) {
-                        this.AddTag(splitTags[i], tagBar, firstTag, stringToReplace);
+                        siteObj.tags.AddTag(splitTags[i], tagBar, firstTag, stringToReplace);
                     }
 
                     firstTag.remove();
                 },
                 RemoveTags: function () {
-                    let tagBar = document.getElementById("tag-sidebar");
+                    let tagBar = siteObj.tags.GetTagSidebarElement();
                     if (tagBar.childNodes[0].innerHTML === undefined) {
-                        //console.log(tagBar.childNodes[0]);
-                        //console.log(tagBar.childNodes[1]);
                         tagBar.childNodes[0].remove();
                     }
                     for (let i = tagBar.childNodes.length - 1; i >= 1; i--) {
@@ -490,42 +581,110 @@
                     }
                 },
                 RemoveEmptyTags: function () {
-                    let tagBar = document.getElementById("tag-sidebar");
+                    let tagBar = siteObj.tags.GetTagSidebarElement();
                     for (let i = tagBar.childNodes.length - 1; i >= 0; i--) {
                         let tAg = tagBar.childNodes[i];
-                        if (tAg.childNodes[5].innerHTML === "" || tAg.childNodes[7].innerHTML === "") {
-                            tAg.remove();
+                        try {
+                            if (tAg.childNodes[4].innerHTML === "" || tAg.childNodes[7].innerHTML === "") {
+                                tAg.remove();
+                            }
+                        } catch (ex) {
+
                         }
                     }
                 }
             }
         };
 
-        //siteObj = JSON.parse(JSON.stringify(defaultSiteObject));
         siteObj = cloneObject(defaultSiteObject);
 
-        switch (window.location.hostname) {
+        let hostName = window.location.hostname;
+        //console.log(hostName + " : " + ());
+        if (hostName.startsWith("danbooru.donmai"))
+            hostName = "danbooru.donmai";
+
+        switch (hostName) {
+
             case "rule34.xxx":
+                siteObj.tags.logTagErrors = false;
+                break;
+
+
+            case "danbooru.donmai":
+                siteObj.SetVars = function () {
+                    buttonInsertionPoint = document.getElementById("post-sections");
+                    posts = document.getElementById("posts");
+                    imgList = posts.childNodes[1].childNodes;
+                    tagEntry = document.getElementById("tags");
+                    postSources = Array(imgList.length);
+                    siteObj.posts.RemoveTextFillerElements();
+
+                    tagTypeLookup = {
+                        0: "category-0",
+                        1: "category-1",
+                        2: "category-2",
+                        3: "category-3",
+                        4: "category-4"
+                    };
+                };
+
+                //danbooru post stuff
+                siteObj.posts.postPageIdName = "page";
+                siteObj.posts.postIdReplaceChar = "post_";
+                siteObj.posts.postFileUrlName = "file-url";
+                siteObj.posts.postApiEndpoint = "/posts.xml?";
+                siteObj.posts.postLimit = 20;
+                siteObj.posts.HandlePageId = function (value) {
+                    return Number(value);
+                };
+                siteObj.GetObjectProperty = function (obj, propName) {
+                    return obj[propName]["#text"];
+                };
+                siteObj.GetSinglePostApiRequest = function(tmpId){
+                    let request = JsonHttpRequest("/posts/" + tmpId.toString() + ".xml?");
+                    return siteObj.GetObjectProperty(request, siteObj.posts.postFileUrlName);
+                };
+
+                //danbooru tag stuff
+                siteObj.tags.tagApiEndpoint = "/tags.xml?search[name]=";
+                siteObj.tags.tagApiSplitChar = ",";
+                siteObj.tags.tagsPropertyName = "tag-string";
+                siteObj.tags.tagCategoryPropertyName = "category";
+                siteObj.tags.tagCountPropertyName = "post-count";
+                siteObj.tags.maxTagApiCount = 19;
+                siteObj.tags.GetTagSidebarElement = function(){
+                    return document.getElementById("tag-box").childNodes[3];
+                };
+                siteObj.tags.FindStringToReplace = function(tag){
+                    return tag.childNodes[2].innerHTML.replace(/ /g, "_");
+                };
+                siteObj.tags.TagCloneNameSetter = function(tagClone, tagName){
+                    tagClone.childNodes[2].innerHTML = tagName.replace(/_/g, " ");
+                };
+                siteObj.tags.TagCountFormatter = function(count){
+                    var nCount = Number(count);
+                    if(nCount < 1000) {
+                        return nCount.toString();
+                    }else if(nCount < 10000){
+                        return (nCount / 1000).toPrecision(2).toString() + "k";
+                    }else{
+                        nCount /= 1000;
+                        return Math.round(nCount).toString() + "k";
+                    }
+                };
+                siteObj.tags.TagCloneCountSetter = function(tagClone, tagCount){
+                    tagClone.childNodes[4].innerHTML = siteObj.tags.TagCountFormatter(tagCount);
+                };
 
                 break;
 
 
-            case "chan.sankakucomplex.com":
+            case ("chan.sankakucomplex.com" || ""):
                 break;
-        }
-    }
 
-    function cloneObject(obj) {
-        if (obj === null || typeof obj !== 'object') {
-            return obj;
         }
 
-        let temp = obj.constructor(); // give temp the original obj's constructor
-        for (let key in obj) {
-            temp[key] = cloneObject(obj[key]);
-        }
-
-        return temp;
+        //end switch setup
     }
 
 
@@ -545,6 +704,7 @@
         var target = this;
         return target.split(search).join(replacement);
     };
+
 
     function mergeDedupe(arr) {
         return [...new Set([].concat(...arr))];
@@ -606,6 +766,19 @@
             result[item[0]] = decodeURIComponent(item[1]);
         });
         return result;
+    }
+
+    function cloneObject(obj) {
+        if (obj === null || typeof obj !== 'object') {
+            return obj;
+        }
+
+        let temp = obj.constructor(); // give temp the original obj's constructor
+        for (let key in obj) {
+            temp[key] = cloneObject(obj[key]);
+        }
+
+        return temp;
     }
 
     function JsonHttpRequest(urlRequest) {

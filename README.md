@@ -6,6 +6,13 @@ Has a basic image preload thing in it that should preload the images ahead of th
 Left and right arrow keys will change image. Down arrow key downloads current image.
 I wonder how many people will find this or get use out of it.
 
+Feel free to contact me and give feedback or suggestions or tell me if something is wrong.
+Supported Sites: Gelbooru.com, Rule34.xxx, Danbooru.donmai
+
+v1.35 
+-Even more refactoring and bug fixes
+-Danbooru support
+
 v1.31
 -More refactoring and bug fixes
 
