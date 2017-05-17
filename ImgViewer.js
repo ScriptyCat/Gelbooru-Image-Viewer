@@ -211,7 +211,7 @@
         var dI = currentSrc.lastIndexOf(".");
         var fileExt = currentSrc.substring(dI + 1);
 
-        if (fileExt.toLowerCase() == "webm") {
+        if (fileExt.toLowerCase() == "webm" || fileExt.toLowerCase() == "mp4") {
             videoImg.setAttribute("src", currentSrc);
             videoImg.removeAttribute("hidden");
             videoImg.play();
@@ -402,7 +402,6 @@
                     let tags = encodeUriSpecial(tagEntry.value);
                     apiObj.request = this.postApiEndpoint + "&" + this.postLimitName + "=" + apiObj.postLimit
                     + "&" + this.postTagsName + "=" + tags + "&" + this.postPageIdName + "=" + pid;
-                    console.log(apiObj.request);
                 },
                 PostsJsonGetPost: function (index) {
                     let tmpPost = postsJson.posts.post[index];
