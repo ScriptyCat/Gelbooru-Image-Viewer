@@ -9,7 +9,10 @@ I wonder how many people will find this or get use out of it.
 Feel free to contact me and give feedback or suggestions or tell me if something is wrong.
 Supported Sites: Gelbooru.com, Rule34.xxx, Danbooru.donmai
 
-v1.35 
+v1.36
+-hotfix bug fixes
+
+v1.35
 -Even more refactoring and bug fixes
 -Danbooru support
 

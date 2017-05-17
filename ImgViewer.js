@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         ImageBoard Viewer/Downloader
-// @version      1.35
+// @version      1.36
 // @description  A simple quick and dirty image viewer for gelbooru.com and rule34.xxx supports all formats from gif to webm.
 // @author       PineappleLover69
 // @include      https://gelbooru.com*
@@ -394,33 +394,37 @@
                     return value / this.postLimit;
                 },
                 PostApiSelector: function (apiObj) {
-                    var pid = 0;
+                    let pid = 0;
                     apiObj.postLimit = this.postLimit;
                     if (apiObj[this.postPageIdName]) {
                         pid = this.HandlePageId(apiObj[this.postPageIdName]);
                     }
-                    var tags = encodeURIComponent(tagEntry.value);
+                    let tags = encodeUriSpecial(tagEntry.value);
                     apiObj.request = this.postApiEndpoint + "&" + this.postLimitName + "=" + apiObj.postLimit
                     + "&" + this.postTagsName + "=" + tags + "&" + this.postPageIdName + "=" + pid;
+                    console.log(apiObj.request);
                 },
                 PostsJsonGetPost: function (index) {
                     let tmpPost = postsJson.posts.post[index];
                     return tmpPost;
                 },
+                PostMismatch: function(apiObj, index){
+                    imgList[index].remove();
+                    imgList[imgList.length - 1].remove();
+                    apiObj.postLimit -= 2;
+                    console.log("removed 1: " + apiObj.postLimit + " : " + imgList.length);
+                },
                 PostSourcesSelector: function (apiObj) {
+                    apiObj.postOffset = 0;
                     for (let i = 0; i < apiObj.postLimit;) {
-                        let tmpPost = siteObj.posts.PostsJsonGetPost(i);
+                        let tmpPost = siteObj.posts.PostsJsonGetPost(i + apiObj.postOffset);
                         if (!tmpPost)
                             break;
                         let tmpId = imgList[i].id;
                         tmpId = tmpId.replace(this.postIdReplaceChar, "");
 
                         if (siteObj.GetObjectProperty(tmpPost, "id") != tmpId) {
-                            imgList[i].remove();
-                            imgList[imgList.length - 1].remove();
-                            apiObj.postLimit -= 2;
-
-                            console.log("removed 2: " + apiObj.postLimit + " : " + imgList.length);
+                            siteObj.posts.PostMismatch(apiObj, i);
                         } else {
                             postSources[i] = siteObj.GetObjectProperty(tmpPost, this.postFileUrlName);
                             if (siteObj.posts.addSiteNameToFileUrl)
@@ -491,7 +495,7 @@
                     }
 
                     for (i = 0; i < uniqueStringArray.length; i++) {
-                        let request = this.tagApiEndpoint + encodeURIComponent(uniqueStringArray[i]);
+                        let request = this.tagApiEndpoint + encodeUriSpecial(uniqueStringArray[i]);
                         TagRequest(request);
                     }
                 },
@@ -530,7 +534,7 @@
                         var clonedTag = tagToClone.cloneNode(true);
                         tagParent.appendChild(clonedTag);
                         clonedTag.innerHTML = clonedTag.innerHTML.replaceAll("class=", "cla$$=");
-                        clonedTag.innerHTML = clonedTag.innerHTML.replaceAll(stringToReplace, encodeURIComponent(tagName));
+                        clonedTag.innerHTML = clonedTag.innerHTML.replaceAll(stringToReplace, encodeUriSpecial(tagName));
                         clonedTag.innerHTML = clonedTag.innerHTML.replaceAll("cla$$=", "class=");
 
                         siteObj.tags.TagCloneNameSetter(clonedTag, tagName);
@@ -551,7 +555,7 @@
                 },
                 FindStringToReplace: function(tag){
                     let nodeIndex = siteObj.tags.GetNodeIndex();
-                    return encodeURIComponent(tag.childNodes[nodeIndex].innerHTML);
+                    return encodeUriSpecial(tag.childNodes[nodeIndex].innerHTML);
                 },
                 AddTags: function () {
                     let currentPost = siteObj.posts.PostsJsonGetPost(imgIndex);
@@ -631,7 +635,7 @@
                 //danbooru post stuff
                 siteObj.posts.postPageIdName = "page";
                 siteObj.posts.postIdReplaceChar = "post_";
-                siteObj.posts.postFileUrlName = "file-url";
+                siteObj.posts.postFileUrlName = "large-file-url";
                 siteObj.posts.postApiEndpoint = "/posts.xml?";
                 siteObj.posts.postLimit = 20;
                 siteObj.posts.HandlePageId = function (value) {
@@ -640,9 +644,16 @@
                 siteObj.GetObjectProperty = function (obj, propName) {
                     return obj[propName]["#text"];
                 };
-                siteObj.GetSinglePostApiRequest = function(tmpId){
+                siteObj.posts.GetSinglePostApiRequest = function(tmpId){
                     let request = JsonHttpRequest("/posts/" + tmpId.toString() + ".xml?");
                     return siteObj.GetObjectProperty(request, siteObj.posts.postFileUrlName);
+                };
+                siteObj.posts.PostMismatch = function(apiObj, index){
+                    console.log(postsJson);
+                    //imgList[index].remove();
+                    apiObj.postLimit--;
+                    apiObj.postOffset++;
+                    console.log("removed 1: " + apiObj.postLimit + " : " + imgList.length);
                 };
 
                 //danbooru tag stuff
@@ -656,7 +667,8 @@
                     return document.getElementById("tag-box").childNodes[3];
                 };
                 siteObj.tags.FindStringToReplace = function(tag){
-                    return tag.childNodes[2].innerHTML.replace(/ /g, "_");
+                    let tmpStr = tag.childNodes[2].innerHTML.replace(/ /g, "_");
+                    return encodeUriSpecial(tmpStr);
                 };
                 siteObj.tags.TagCloneNameSetter = function(tagClone, tagName){
                     tagClone.childNodes[2].innerHTML = tagName.replace(/_/g, " ");
@@ -689,6 +701,10 @@
 
 
     //----------everything below here is either utility or is pretty set in stone-------------------
+
+    function encodeUriSpecial(str){
+        return encodeURIComponent(str).replace(/\(/g, "%28").replace(/\)/g, "%29");
+    }
 
     Element.prototype.remove = function () {
         if (this)
