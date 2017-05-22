@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         ImageBoard Viewer/Downloader
 // @version      1.4
-// @description  A simple quick and dirty image viewer for gelbooru.com and rule34.xxx supports all formats from gif to webm.
+// @description  A simple quick and dirty image viewer various imageboard sites
 // @author       PineappleLover69
 // @include      https://gelbooru.com*
 // @include      https://rule34.xxx*
