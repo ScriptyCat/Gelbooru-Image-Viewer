@@ -7,7 +7,11 @@ Left and right arrow keys will change image. Down arrow key downloads current im
 I wonder how many people will find this or get use out of it.
 
 Feel free to contact me and give feedback or suggestions or tell me if something is wrong.
-Supported Sites: Gelbooru.com, Rule34.xxx, Danbooru.donmai
+Supported Sites:
+ Gelbooru.com - full
+ Rule34.xxx - full
+ Danbooru.donmai - full
+ Sankukucomplex.com - images/no tags(yet)
 
 v1.36
 -hotfix bug fixes

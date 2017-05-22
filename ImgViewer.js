@@ -1,11 +1,15 @@
 // ==UserScript==
 // @name         ImageBoard Viewer/Downloader
-// @version      1.36
+// @version      1.4
 // @description  A simple quick and dirty image viewer for gelbooru.com and rule34.xxx supports all formats from gif to webm.
 // @author       PineappleLover69
 // @include      https://gelbooru.com*
 // @include      https://rule34.xxx*
 // @include      https://danbooru.donmai*
+// @include      https://chan.sankakucomplex.com*
+// @include      https://idol.sankakucomplex.com*
+// @connect      sankakucomplex.com
+// @grant        GM_xmlhttpRequest
 
 // ==/UserScript==
 
@@ -17,34 +21,23 @@
     var AutoShowImageView = false;
     var DisableImageLinks = true;
 
+    var urlChecks = [];
+    var GetSrcForImg;
     var siteObj, defaultSiteObject;
     siteObj = siteObj;
     SetUpSiteSwitchObjs();
 
     //this group of vars is to be set by SetVars() and depends on the current website
-    var buttonInsertionPoint, posts, imgList, tagEntry, tagTypeLookup, postsJson, tagArray, postSources;
+    var buttonInsertionPoint, imgList, tagEntry, tagTypeLookup, postsJson, tagArray, postSources;
 
 
     var tagDictionary = {};
 
     siteObj.SetVars();
-    siteObj.posts.BatchPostApiCall();
+    siteObj.Startup();
 
     var imgIndex = 0;
     var imgOpened = false;
-
-    if (DisableImageLinks) {
-        for (let i = 0; i < imgList.length;) {
-            try {
-                imgList[i].setAttribute("openRef", imgList[i].childNodes[0].getAttribute("href"));
-                imgList[i].childNodes[0].removeAttribute("href");
-                imgList[i].childNodes[0].addEventListener("click", ImgClick);
-                i++;
-            } catch (ex) {
-                imgList[i].remove();
-            }
-        }
-    }
 
 
     function ImgClick(e) {
@@ -55,7 +48,7 @@
         siteObj.ImgClickGetChildAndParent(parentchildObj, e);
 
         // The equivalent of parent.children.indexOf(child)
-        imgIndex = Array.prototype.indexOf.call(parentchildObj.parent.children, parentchildObj.child);
+        imgIndex = Array.prototype.indexOf.call(parentchildObj.parent, parentchildObj.child);
         SetImg();
         imgViewBtn.scrollIntoView();
     }
@@ -188,28 +181,41 @@
         currentSrc = GetSrcForImg(imgIndex);
     }
 
-    function GetSrcForImg(getIndex) {
-        if (postSources[getIndex]) {
-            return postSources[getIndex];
-        } else {
-            return siteObj.posts.SinglePostSrc(getIndex);
-        }
+
+    if (GetSrcForImg == undefined) {
+        GetSrcForImg = function (getIndex) {
+            if (postSources[getIndex]) {
+                return postSources[getIndex];
+            } else {
+                var postReq = siteObj.posts.SinglePostSrc(getIndex);
+                if (postReq == undefined)
+                    return "";
+                return postReq;
+            }
+        };
     }
 
-    function SetNewTags() {
+    SetNewTags = function () {
         if (!tagArray)
             return;
 
         siteObj.tags.RemoveTags();
         siteObj.tags.AddTags();
         siteObj.tags.RemoveEmptyTags();
-    }
+    };
 
 
     function SetImg() {
         SetCurrentSrc();
-        var dI = currentSrc.lastIndexOf(".");
-        var fileExt = currentSrc.substring(dI + 1);
+        if (currentSrc == "" || currentSrc == undefined) {
+            imgViewImg.setAttribute("src", "");
+            videoImg.setAttribute("src", "");
+            return;
+        }
+
+
+        let dI = currentSrc.lastIndexOf(".");
+        let fileExt = currentSrc.substring(dI + 1).split("?")[0];
 
         if (fileExt.toLowerCase() == "webm" || fileExt.toLowerCase() == "mp4") {
             videoImg.setAttribute("src", currentSrc);
@@ -328,7 +334,6 @@
 
             SetVars: function () {
                 buttonInsertionPoint = document.getElementsByClassName("content")[0];
-                posts = document.getElementById("post-list");
                 imgList = document.getElementsByClassName("thumb");
                 tagEntry = document.getElementById("tags");
                 postSources = Array(imgList.length);
@@ -345,10 +350,14 @@
             },
             ImgClickGetChildAndParent: function (obj, e) {
                 obj.child = e.target.parentNode.parentNode;
-                obj.parent = obj.child.parentNode;
+                obj.parent = imgList;
             },
             GetObjectProperty: function (obj, propName) {
                 return obj["@attributes"][propName];
+            },
+            Startup: function () {
+                siteObj.posts.DisableImageLinks();
+                siteObj.posts.BatchPostApiCall();
             },
             posts: {
                 postIdReplaceChar: "s",
@@ -362,6 +371,25 @@
                 addSiteNameToFileUrl: false,
                 OnImgView: function () {
 
+                },
+                DisableImageLinks: function () {
+                    for (let i = 0; i < imgList.length;) {
+                        try {
+                            if (!imgList[i].getAttribute("openRef")) {
+                                let tmpAnchor = imgList[i].childNodes[0];
+                                imgList[i].setAttribute("openRef", tmpAnchor.getAttribute("href"));
+                                if (DisableImageLinks) {
+                                    tmpAnchor.onclick = null;
+                                    tmpAnchor.removeAttribute("onclick");
+                                    tmpAnchor.removeAttribute("href");
+                                    tmpAnchor.addEventListener("click", ImgClick);
+                                }
+                            }
+                            i++;
+                        } catch (ex) {
+                            imgList[i].remove();
+                        }
+                    }
                 },
                 RemoveTextFillerElements: function () {
                     for (let i = 0; i < imgList.length;) {
@@ -407,7 +435,7 @@
                     let tmpPost = postsJson.posts.post[index];
                     return tmpPost;
                 },
-                PostMismatch: function(apiObj, index){
+                PostMismatch: function (apiObj, index) {
                     imgList[index].remove();
                     imgList[imgList.length - 1].remove();
                     apiObj.postLimit -= 2;
@@ -432,7 +460,7 @@
                         }
                     }
                 },
-                GetSinglePostApiRequest: function(tmpId){
+                GetSinglePostApiRequest: function (tmpId) {
                     let request = JsonHttpRequest(this.postApiEndpoint + "&" + this.postIdName + "=" + tmpId.toString());
                     return siteObj.GetObjectProperty(request, this.postFileUrlName);
                 },
@@ -455,7 +483,7 @@
                 tagCategoryPropertyName: "type",
                 tagCountPropertyName: "count",
                 tagNamePropertyName: "name",
-                GetTagSidebarElement:function(){
+                GetTagSidebarElement: function () {
                     return document.getElementById("tag-sidebar");
                 },
                 CreateTagBase: function () {
@@ -498,7 +526,7 @@
                         TagRequest(request);
                     }
                 },
-                GetTagJsonArray: function(tagJson){
+                GetTagJsonArray: function (tagJson) {
                     return tagJson.tags.tag;
                 },
                 TagDictionarySetup: function (tagsJson) {
@@ -513,18 +541,18 @@
                         tagDictionary[siteObj.GetObjectProperty(tmpArray[i], this.tagNamePropertyName).toLowerCase()] = tmpArray[i];
                     }
                 },
-                GetNodeIndex: function(){
-                    return(window.location.hostname == "rule34.xxx") ? 4 : 7;
+                GetNodeIndex: function () {
+                    return (window.location.hostname == "rule34.xxx") ? 4 : 7;
                 },
-                TagCountFormatter: function(count){
+                TagCountFormatter: function (count) {
                     var nCount = Number(count);
                     return nCount;
                 },
-                TagCloneNameSetter: function(tagClone, tagName){
+                TagCloneNameSetter: function (tagClone, tagName) {
                     let nodeIndex = siteObj.tags.GetNodeIndex();
                     tagClone.childNodes[nodeIndex].innerHTML = tagName.replace(/_/g, " ");
                 },
-                TagCloneCountSetter: function(tagClone, tagCount){
+                TagCloneCountSetter: function (tagClone, tagCount) {
                     let nodeIndex = siteObj.tags.GetNodeIndex();
                     tagClone.childNodes[nodeIndex + 2].innerHTML = siteObj.tags.TagCountFormatter(tagCount);
                 },
@@ -552,7 +580,7 @@
                         }
                     }
                 },
-                FindStringToReplace: function(tag){
+                FindStringToReplace: function (tag) {
                     let nodeIndex = siteObj.tags.GetNodeIndex();
                     return encodeUriSpecial(tag.childNodes[nodeIndex].innerHTML);
                 },
@@ -605,6 +633,10 @@
         //console.log(hostName + " : " + ());
         if (hostName.startsWith("danbooru.donmai"))
             hostName = "danbooru.donmai";
+        if (hostName == "idol.sankakucomplex.com")
+            hostName = "chan.sankakucomplex.com";
+
+        //console.log(hostName);
 
         switch (hostName) {
 
@@ -616,8 +648,8 @@
             case "danbooru.donmai":
                 siteObj.SetVars = function () {
                     buttonInsertionPoint = document.getElementById("post-sections");
-                    posts = document.getElementById("posts");
-                    imgList = posts.childNodes[1].childNodes;
+                    var postList = document.getElementById("posts");
+                    imgList = postList.childNodes[1].childNodes;
                     tagEntry = document.getElementById("tags");
                     postSources = Array(imgList.length);
                     siteObj.posts.RemoveTextFillerElements();
@@ -643,11 +675,11 @@
                 siteObj.GetObjectProperty = function (obj, propName) {
                     return obj[propName]["#text"];
                 };
-                siteObj.posts.GetSinglePostApiRequest = function(tmpId){
+                siteObj.posts.GetSinglePostApiRequest = function (tmpId) {
                     let request = JsonHttpRequest("/posts/" + tmpId.toString() + ".xml?");
                     return siteObj.GetObjectProperty(request, siteObj.posts.postFileUrlName);
                 };
-                siteObj.posts.PostMismatch = function(apiObj, index){
+                siteObj.posts.PostMismatch = function (apiObj, index) {
                     console.log(postsJson);
                     //imgList[index].remove();
                     apiObj.postLimit--;
@@ -662,35 +694,103 @@
                 siteObj.tags.tagCategoryPropertyName = "category";
                 siteObj.tags.tagCountPropertyName = "post-count";
                 siteObj.tags.maxTagApiCount = 19;
-                siteObj.tags.GetTagSidebarElement = function(){
+                siteObj.tags.GetTagSidebarElement = function () {
                     return document.getElementById("tag-box").childNodes[3];
                 };
-                siteObj.tags.FindStringToReplace = function(tag){
+                siteObj.tags.FindStringToReplace = function (tag) {
                     let tmpStr = tag.childNodes[2].innerHTML.replace(/ /g, "_");
                     return encodeUriSpecial(tmpStr);
                 };
-                siteObj.tags.TagCloneNameSetter = function(tagClone, tagName){
+                siteObj.tags.TagCloneNameSetter = function (tagClone, tagName) {
                     tagClone.childNodes[2].innerHTML = tagName.replace(/_/g, " ");
                 };
-                siteObj.tags.TagCountFormatter = function(count){
+                siteObj.tags.TagCountFormatter = function (count) {
                     var nCount = Number(count);
-                    if(nCount < 1000) {
+                    if (nCount < 1000) {
                         return nCount.toString();
-                    }else if(nCount < 10000){
+                    } else if (nCount < 10000) {
                         return (nCount / 1000).toPrecision(2).toString() + "k";
-                    }else{
+                    } else {
                         nCount /= 1000;
                         return Math.round(nCount).toString() + "k";
                     }
                 };
-                siteObj.tags.TagCloneCountSetter = function(tagClone, tagCount){
+                siteObj.tags.TagCloneCountSetter = function (tagClone, tagCount) {
                     tagClone.childNodes[4].innerHTML = siteObj.tags.TagCountFormatter(tagCount);
                 };
 
                 break;
 
 
-            case ("chan.sankakucomplex.com" || ""):
+            case "chan.sankakucomplex.com":
+                //sankaku posts stuff
+
+                document.addEventListener("mousemove", function () {
+                    siteObj.posts.BatchPostApiCall();
+                });
+
+                siteObj.SetVars = function () {
+                    defaultSiteObject.SetVars();
+                    postSources = {};
+                    if (document.getElementById("recommended"))
+                        buttonInsertionPoint = document.getElementById("recommended");
+                };
+
+                GetSrcForImg = function (getIndex) {
+                    let tmpImg = imgList[getIndex].childNodes[0].childNodes[0];
+                    let srcIndex = tmpImg.src;
+
+                    if (postSources[srcIndex]) {
+                        return postSources[srcIndex];
+                    } else {
+                        var postReq = siteObj.posts.SinglePostSrc(getIndex);
+                        if (postReq == undefined)
+                            return "";
+                        return postReq;
+                    }
+                };
+
+                let redirectCheck = function (response) {
+                    return !response.finalUrl.endsWith("redirect.png");
+                };
+
+                siteObj.posts.SinglePostSrc = function (index) {
+                    let tmpImg = imgList[index].childNodes[0].childNodes[0];
+                    let srcIndex = tmpImg.src;
+
+                    if (postSources[srcIndex] === undefined) {
+                        let tmpUrl = tmpImg.src;
+                        tmpUrl = tmpUrl.replace("/preview/", "/").replace("c.sank", "cs.sank").replace("i.sank", "is.sank");
+                        tmpUrl = tmpUrl.substring(0, tmpUrl.lastIndexOf("."));
+                        let tmpId = "?" + imgList[index].id.substring(1);
+                        let tmpTags = tmpImg.getAttribute("title");
+                        tmpTags = tmpTags.substring(0, tmpTags.lastIndexOf("Rating:"));
+
+                        if (tmpTags.includes("animated") || tmpTags.includes("video") || tmpTags.includes("mp4") || tmpTags.includes("webm") || tmpTags.includes("animated_gif")) {
+                            if (tmpTags.includes("mp4")) {
+                                //AsyncUrlCheck(tmpUrl + ".mp4", index, redirectCheck);
+                                postSources[srcIndex] = tmpUrl + ".mp4" + tmpId;
+                            } else if (tmpTags.includes("webm")) {
+                                //AsyncUrlCheck(tmpUrl + ".webm", index, redirectCheck);
+                                postSources[srcIndex] = tmpUrl + ".webm" + tmpId;
+                            } else if (tmpTags.includes("animated_gif")) {
+                                //AsyncUrlCheck(tmpUrl + ".gif", index, redirectCheck);
+                                postSources[srcIndex] = tmpUrl + ".gif" + tmpId;
+                            }
+                            return postSources[srcIndex];
+                        } else {
+                            NoApiFindUrlAsync(index, srcIndex, tmpUrl, false, tmpId, redirectCheck);
+                        }
+                    }
+                };
+
+                siteObj.posts.BatchPostApiCall = function () {
+                    siteObj.posts.DisableImageLinks();
+                    //for (let i = 0; i < imgList.length; i++) {
+                    //    siteObj.posts.SinglePostSrc(i);
+                    //}
+                };
+
                 break;
 
         }
@@ -701,7 +801,7 @@
 
     //----------everything below here is either utility or is pretty set in stone-------------------
 
-    function encodeUriSpecial(str){
+    function encodeUriSpecial(str) {
         return encodeURIComponent(str).replace(/\(/g, "%28").replace(/\)/g, "%29");
     }
 
@@ -794,6 +894,66 @@
         }
 
         return temp;
+    }
+
+    function AsyncHtmlDocHandler(index, callback) {
+        try {
+            let url = imgList[index].getAttribute("openRef");
+
+            var xhr = new XMLHttpRequest();
+
+            xhr.onload = function () {
+                if (this.status = 200 && this.readyState == 4 && callback && typeof( callback ) === 'function') {
+                    callback(this.response);
+                }
+            };
+
+            xhr.open('GET', url);
+            xhr.responseType = 'document';
+            xhr.send();
+        } catch (ex) {
+
+        }
+    }
+
+    function NoApiFindUrlAsync(index, srcIndex, url, checkAnimated = false, append = "", extraCheck = function (r) {
+        return true;
+    }) {
+        AsyncUrlCheck(url + ".jpg" + append, index, srcIndex, extraCheck);
+        AsyncUrlCheck(url + ".jpeg" + append, index, srcIndex, extraCheck);
+        AsyncUrlCheck(url + ".png" + append, index, srcIndex, extraCheck);
+
+        if (checkAnimated) {
+            AsyncUrlCheck(url + ".mp4" + append, index, srcIndex, extraCheck);
+            AsyncUrlCheck(url + ".gif" + append, index, srcIndex, extraCheck);
+            AsyncUrlCheck(url + ".webm" + append, index, srcIndex, extraCheck);
+        }
+    }
+
+    function AsyncUrlCheck(url, index, srcIndex, extraCheck) {
+        if (urlChecks.indexOf(url) >= 0)
+            return;
+
+        urlChecks.push(url);
+
+        try {
+            GM_xmlhttpRequest({
+                method: "GET",
+                url: url,
+                onload: function (response) {
+                    if (response.readyState == 4 && response.status == 200 && extraCheck(response)) {
+                        postSources[srcIndex] = url;
+                        if (imgOpened && imgIndex == index)
+                            SetImg();
+                        //console.log(url);
+                    }
+                    if (response.status != 404)
+                        urlChecks.splice(urlChecks.indexOf(url), 1);
+                }
+            });
+        } catch (ex) {
+            urlChecks.splice(urlChecks.indexOf(url), 1);
+        }
     }
 
     function JsonHttpRequest(urlRequest) {
