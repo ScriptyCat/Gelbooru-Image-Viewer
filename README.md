@@ -13,9 +13,12 @@ Supported Sites:
  Danbooru.donmai - full
  Sankukucomplex.com - images/no tags(yet)
 
+v1.41
+-Minor improvements to sankaku loading
+
 v1.4
 -Minor refactoring
--Basic Sankaku complex support
+-Basic Sankaku complex support (dont browse too quickly or it will be slowwwww)
 
 v1.36
 -hotfix bug fixes

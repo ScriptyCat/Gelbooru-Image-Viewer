@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         ImageBoard Viewer/Downloader
-// @version      1.4
+// @version      1.41
 // @description  A simple quick and dirty image viewer various imageboard sites
 // @author       PineappleLover69
 // @include      https://gelbooru.com*
@@ -21,7 +21,7 @@
     var AutoShowImageView = false;
     var DisableImageLinks = true;
 
-    var urlChecks = [];
+    var urlChecks = {};
     var GetSrcForImg;
     var siteObj, defaultSiteObject;
     siteObj = siteObj;
@@ -38,20 +38,6 @@
 
     var imgIndex = 0;
     var imgOpened = false;
-
-
-    function ImgClick(e) {
-        if (!imgOpened)
-            ImgView();
-
-        var parentchildObj = {};
-        siteObj.ImgClickGetChildAndParent(parentchildObj, e);
-
-        // The equivalent of parent.children.indexOf(child)
-        imgIndex = Array.prototype.indexOf.call(parentchildObj.parent, parentchildObj.child);
-        SetImg();
-        imgViewBtn.scrollIntoView();
-    }
 
     var imgViewBtn = document.createElement("button");
     imgViewBtn.innerHTML = "Image View";
@@ -176,9 +162,22 @@
         window.open(imgList[imgIndex].getAttribute("openRef"));
     }
 
+    function ImgClick(e) {
+        if (!imgOpened)
+            ImgView();
+
+        var parentchildObj = {};
+        siteObj.ImgClickGetChildAndParent(parentchildObj, e);
+
+        // The equivalent of parent.children.indexOf(child)
+        imgIndex = Array.prototype.indexOf.call(parentchildObj.parent, parentchildObj.child);
+        SetImg();
+        imgViewBtn.scrollIntoView();
+    }
 
     function SetCurrentSrc() {
         currentSrc = GetSrcForImg(imgIndex);
+        //console.log(currentSrc);
     }
 
 
@@ -751,7 +750,8 @@
                 };
 
                 let redirectCheck = function (response) {
-                    return !response.finalUrl.endsWith("redirect.png");
+                    //console.log("rdc: " + response.finalUrl);
+                    return !response.finalUrl.includes("redirect.png");
                 };
 
                 siteObj.posts.SinglePostSrc = function (index) {
@@ -776,19 +776,28 @@
                             } else if (tmpTags.includes("animated_gif")) {
                                 //AsyncUrlCheck(tmpUrl + ".gif", index, redirectCheck);
                                 postSources[srcIndex] = tmpUrl + ".gif" + tmpId;
+                            } else {
+                                NoApiFindUrlAsync(index, srcIndex, tmpUrl, true, tmpId, redirectCheck);
                             }
                             return postSources[srcIndex];
                         } else {
                             NoApiFindUrlAsync(index, srcIndex, tmpUrl, false, tmpId, redirectCheck);
                         }
+                    } else {
+                        return postSources[srcIndex];
                     }
                 };
 
                 siteObj.posts.BatchPostApiCall = function () {
                     siteObj.posts.DisableImageLinks();
+                    //let tCount = 0;
                     //for (let i = 0; i < imgList.length; i++) {
-                    //    siteObj.posts.SinglePostSrc(i);
+                    //    let tSrc = siteObj.posts.SinglePostSrc(i);
+                    //    if(tSrc !== undefined){
+                    //        tCount++;
+                    //    }
                     //}
+                    //console.log(tCount + "/" + imgList.length);
                 };
 
                 break;
@@ -919,40 +928,79 @@
     function NoApiFindUrlAsync(index, srcIndex, url, checkAnimated = false, append = "", extraCheck = function (r) {
         return true;
     }) {
-        AsyncUrlCheck(url + ".jpg" + append, index, srcIndex, extraCheck);
-        AsyncUrlCheck(url + ".jpeg" + append, index, srcIndex, extraCheck);
-        AsyncUrlCheck(url + ".png" + append, index, srcIndex, extraCheck);
+        if (urlChecks[url])
+            return;
+        urlChecks[url] = {
+            jpg: null,
+            jpeg: null,
+            png: null,
+            gif: null,
+            mp4: null,
+            webm: null,
+            abortAll: function () {
+                if (this.jpg)
+                    this.jpg.abort();
+                if (this.jpeg)
+                    this.jpeg.abort();
+                if (this.png)
+                    this.png.abort();
+                if (this.gif)
+                    this.gif.abort();
+                if (this.mp4)
+                    this.mp4.abort();
+                if (this.webm)
+                    this.webm.abort();
 
-        if (checkAnimated) {
-            AsyncUrlCheck(url + ".mp4" + append, index, srcIndex, extraCheck);
-            AsyncUrlCheck(url + ".gif" + append, index, srcIndex, extraCheck);
-            AsyncUrlCheck(url + ".webm" + append, index, srcIndex, extraCheck);
+                jpg = null;
+                jpeg = null;
+                png = null;
+                gif = null;
+                mp4 = null;
+                webm = null;
+            }
+        };
+        if (!checkAnimated) {
+            AsyncUrlCheck(url, append, index, srcIndex, "jpg", extraCheck,);
+            AsyncUrlCheck(url, append, index, srcIndex, "jpeg", extraCheck);
+            AsyncUrlCheck(url, append, index, srcIndex, "png", extraCheck);
+        } else {
+            AsyncUrlCheck(url, append, index, srcIndex, "mp4", extraCheck);
+            AsyncUrlCheck(url, append, index, srcIndex, "gif", extraCheck);
+            AsyncUrlCheck(url, append, index, srcIndex, "webm", extraCheck);
         }
     }
 
-    function AsyncUrlCheck(url, index, srcIndex, extraCheck) {
-        if (urlChecks.indexOf(url) >= 0)
-            return;
-
-        urlChecks.push(url);
-
+    function AsyncUrlCheck(url, append, index, srcIndex, ext, extraCheck) {
+        let modUrl = url + "." + ext + append;
         try {
-            GM_xmlhttpRequest({
-                method: "GET",
-                url: url,
-                onload: function (response) {
-                    if (response.readyState == 4 && response.status == 200 && extraCheck(response)) {
-                        postSources[srcIndex] = url;
-                        if (imgOpened && imgIndex == index)
+            urlChecks[url][ext] = GM_xmlhttpRequest({
+                method: "HEAD",
+                url: modUrl,
+                onreadystatechange: function (response) {
+                    if (response.status == 0)
+                        return;
+
+                    if (response.status == 200 && extraCheck(response)) {
+                        //urlChecks[url] = false;
+                        //console.log(response.readyState +" : " + response.status + " : " + response.finalUrl);
+                        console.log("got: " + modUrl);
+                        postSources[srcIndex] = modUrl;
+                        if (imgOpened && imgIndex == index) {
                             SetImg();
-                        //console.log(url);
+                        }
+                        urlChecks[url].abortAll();
+                    } else if (response.status == 404) {
+                        console.log("not found: " + modUrl);
+                        urlChecks[url][ext].abort();
+                    } else {
+                        console.log("something else: " + response.status + " : " + response.readyState + " : " + response.finalUrl);
+                        urlChecks[url] = null;
                     }
-                    if (response.status != 404)
-                        urlChecks.splice(urlChecks.indexOf(url), 1);
                 }
             });
         } catch (ex) {
-            urlChecks.splice(urlChecks.indexOf(url), 1);
+            console.log(ex);
+            urlChecks[url] = null;
         }
     }
 
