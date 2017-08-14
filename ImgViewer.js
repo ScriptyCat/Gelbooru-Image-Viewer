@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         ImageBoard Viewer/Downloader
-// @version      1.41
+// @version      1.45
 // @description  A simple quick and dirty image viewer various imageboard sites
 // @author       PineappleLover69
 // @include      https://gelbooru.com*
@@ -332,9 +332,9 @@
             //use similar layouts in areas. it is based on the gelbooru design.
 
             SetVars: function () {
-                buttonInsertionPoint = document.getElementsByClassName("content")[0];
+                buttonInsertionPoint = document.getElementsByClassName("contain-push")[0];
                 imgList = document.getElementsByClassName("thumb");
-                tagEntry = document.getElementById("tags");
+                tagEntry = document.getElementById("tags-search");
                 postSources = Array(imgList.length);
                 siteObj.posts.RemoveTextFillerElements();
 
@@ -483,7 +483,7 @@
                 tagCountPropertyName: "count",
                 tagNamePropertyName: "name",
                 GetTagSidebarElement: function () {
-                    return document.getElementById("tag-sidebar");
+                    return document.getElementById("searchTags");
                 },
                 CreateTagBase: function () {
                     let uniqueTagList = [];
@@ -593,9 +593,9 @@
                     let firstTag = tagBar.childNodes[0];
 
                     //let stringToReplace = firstTag.innerHTML.substring(firstTag.innerHTML.lastIndexOf("tags=") + 5, firstTag.innerHTML.lastIndexOf('</a>') - 3);
-                    let stringToReplace = siteObj.tags.FindStringToReplace(firstTag);
+                    let stringToReplace = siteObj.tags.FindStringToReplace(firstTag).replace("%20", "_");
 
-                    for (let i = 1; i < splitTags.length; i++) {
+                    for (let i = 0; i < splitTags.length; i++) {
                         siteObj.tags.AddTag(splitTags[i], tagBar, firstTag, stringToReplace);
                     }
 
@@ -639,8 +639,41 @@
 
         switch (hostName) {
 
+            case "gelbooru.com":
+                let tagBar = siteObj.tags.GetTagSidebarElement();
+                let tagParent = tagBar.parentNode;
+
+                tagParent.insertBefore(tagBar.childNodes[0], tagBar);
+                tagParent.insertBefore(tagBar.childNodes[0], tagBar);
+                tagParent.insertBefore(tagBar.childNodes[0], tagBar);
+                tagParent.insertBefore(tagBar.childNodes[0], tagBar);
+                tagParent.insertBefore(tagBar.childNodes[0], tagBar);
+
+                break;
+
             case "rule34.xxx":
                 siteObj.tags.logTagErrors = false;
+
+                siteObj.tags.GetTagSidebarElement = function () {
+                    return document.getElementById("tag-sidebar");
+                };
+
+                siteObj.SetVars = function () {
+                    buttonInsertionPoint = document.getElementsByClassName("content")[0];
+                    imgList = document.getElementsByClassName("thumb");
+                    tagEntry = document.getElementById("tags");
+                    postSources = Array(imgList.length);
+                    siteObj.posts.RemoveTextFillerElements();
+
+                    tagTypeLookup = {
+                        0: "tag-type-general",
+                        1: "tag-type-artist",
+                        2: "tag-type-copyright",
+                        3: "tag-type-copyright",
+                        4: "tag-type-character"
+                    };
+                };
+
                 break;
 
 
