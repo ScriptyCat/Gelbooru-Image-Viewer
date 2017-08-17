@@ -13,6 +13,9 @@ Supported Sites:
  Danbooru.donmai - full
  Sankukucomplex.com - images/no tags(yet)
 
+v1.451
+-Tiny fix for sankaku that i broke last time oops
+
 v1.45
 -Some fixes for the new gelbooru layout
 

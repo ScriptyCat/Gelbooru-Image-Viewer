@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         ImageBoard Viewer/Downloader
-// @version      1.45
+// @version      1.451
 // @description  A simple quick and dirty image viewer various imageboard sites
 // @author       PineappleLover69
 // @include      https://gelbooru.com*
@@ -11,6 +11,7 @@
 // @connect      sankakucomplex.com
 // @grant        GM_xmlhttpRequest
 
+// @namespace https://greasyfork.org/users/120106
 // ==/UserScript==
 
 
@@ -762,7 +763,20 @@
                 });
 
                 siteObj.SetVars = function () {
-                    defaultSiteObject.SetVars();
+                    buttonInsertionPoint = document.getElementsByClassName("content")[0];
+                    imgList = document.getElementsByClassName("thumb");
+                    tagEntry = document.getElementById("tags");
+                    postSources = Array(imgList.length);
+                    siteObj.posts.RemoveTextFillerElements();
+
+                    tagTypeLookup = {
+                        0: "tag-type-general",
+                        1: "tag-type-artist",
+                        2: "tag-type-copyright",
+                        3: "tag-type-copyright",
+                        4: "tag-type-character"
+                    };
+
                     postSources = {};
                     if (document.getElementById("recommended"))
                         buttonInsertionPoint = document.getElementById("recommended");
