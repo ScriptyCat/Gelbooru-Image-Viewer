@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         ImageBoard Viewer/Downloader
-// @version      1.455
+// @version      1.46
 // @description  A simple quick and dirty image viewer various imageboard sites
 // @author       PineappleLover69
 // @include      https://gelbooru.com*
@@ -8,6 +8,7 @@
 // @include      https://danbooru.donmai*
 // @include      https://chan.sankakucomplex.com*
 // @include      https://idol.sankakucomplex.com*
+// @include      https://rule34hentai.net*
 
 // @connect      sankakucomplex.com
 // @connect      gelbooru.com
@@ -800,6 +801,79 @@
 
                 break;
 
+            case "rule34hentai.net":
+                document.addEventListener("mousemove", function () {
+                    console.log("horg");
+                });
+                siteObj.SetVars = function () {
+                    buttonInsertionPoint = document.getElementById("imagelist").parentNode;
+                    imgList = document.getElementsByClassName("thumb");
+                    tagEntry = $('#Navigationleft > div > form > ul > li > input')[0];
+                    postSources = Array(imgList.length);
+                    siteObj.posts.RemoveTextFillerElements();
+                    //buttonInsertionPoint = document.body;
+                };
+
+                GetSrcForImg = function (getIndex) {
+                    let tmpImg = imgList[getIndex];
+                    let srcIndex = tmpImg.childNodes[0].src;
+
+                    let postId = tmpImg.getAttribute('data-post-id');
+                    let postTags = tmpImg.getAttribute('data-post-id');
+                    let postType = tmpImg.childNodes[0].getAttribute('title');
+                    postType = postType.substring(postType.lastIndexOf("// ") + 3);
+                    let imgSrc = srcIndex.replace("_thumbs", "_images").replace("thumb.jpg", postId + ' - ' + postTags + '.' + postType);
+
+                    console.log(imgSrc);
+                    return imgSrc;
+                };
+
+                let tImgClick = function(e) {
+                    if (!imgOpened)
+                        ImgView();
+
+                    var parentchildObj = {};
+                    parentchildObj.child = e.target.parentNode;
+                    parentchildObj.parent = imgList;
+
+                    // The equivalent of parent.children.indexOf(child)
+                    imgIndex = Array.prototype.indexOf.call(parentchildObj.parent, parentchildObj.child);
+                    console.log(imgIndex);
+                    imgViewBtn.scrollIntoView();
+                    SetImg();
+                }
+
+                siteObj.posts.DisableImageLinks = function () {
+                    for (let i = 0; i < imgList.length;) {
+                        try {
+                            if (!imgList[i].getAttribute("openRef")) {
+                                let tmpAnchor = imgList[i];
+                                imgList[i].setAttribute("openRef", tmpAnchor.getAttribute("href"));
+                                if (DisableImageLinks) {
+                                    tmpAnchor.onclick = null;
+                                    tmpAnchor.removeAttribute("onclick");
+                                    tmpAnchor.removeAttribute("href");
+                                    tmpAnchor.addEventListener("click", tImgClick);
+                                }
+                            }
+                            i++;
+                        } catch (ex) {
+                            imgList[i].remove();
+                        }
+                    }
+                }
+                //siteObj.posts.BatchPostApiCall = function () {
+                //    siteObj.posts.DisableImageLinks();
+                //    //let tCount = 0;
+                //    //for (let i = 0; i < imgList.length; i++) {
+                //    //    let tSrc = siteObj.posts.SinglePostSrc(i);
+                //    //    if(tSrc !== undefined){
+                //    //        tCount++;
+                //    //    }
+                //    //}
+                //    //console.log(tCount + "/" + imgList.length);
+                //};
+                break;
 
             case "chan.sankakucomplex.com":
                 //sankaku posts stuff
@@ -862,7 +936,7 @@
                     return postSources[srcIndex];
 
                     //old
-                    
+
 
                     if (postSources[srcIndex] === undefined) {
                         let tmpUrl = tmpImg.src;

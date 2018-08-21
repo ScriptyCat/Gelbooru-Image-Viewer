@@ -12,9 +12,13 @@ Supported Sites:
  Rule34.xxx - full
  Danbooru.donmai - full
  Sankukucomplex.com - images/no tags(yet)
+ rule34hentai.net - images/no tags
 
+v1.46
+-Support for rule34hentai.net
+ 
 v1.455
--Fix to sankaku thats should be more robust and hopefully more permanent 
+-Fix to sankaku thats should be more robust and hopefully more permanent
 
 v1.451
 -Tiny fix for sankaku that i broke last time oops
