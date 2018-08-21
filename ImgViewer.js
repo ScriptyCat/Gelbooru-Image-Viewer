@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         ImageBoard Viewer/Downloader
-// @version      1.451
+// @version      1.455
 // @description  A simple quick and dirty image viewer various imageboard sites
 // @author       PineappleLover69
 // @include      https://gelbooru.com*
@@ -8,8 +8,11 @@
 // @include      https://danbooru.donmai*
 // @include      https://chan.sankakucomplex.com*
 // @include      https://idol.sankakucomplex.com*
+
 // @connect      sankakucomplex.com
+// @connect      gelbooru.com
 // @grant        GM_xmlhttpRequest
+// @grant        GM_download
 
 // @namespace https://greasyfork.org/users/120106
 // ==/UserScript==
@@ -267,7 +270,7 @@
         var dI = currentSrc.lastIndexOf(".");
         var uI = currentSrc.lastIndexOf("/") + 5;
         var fileExt = currentSrc.substring(dI);
-        var imgName = "tags-" + tagEntry.value + " ";
+        var imgName = tagEntry.value + " ";
         if (tagEntry.value === "") {
             imgName = currentSrc.substring(uI, dI);
         } else {
@@ -275,15 +278,58 @@
         }
         imgName += " id-" + imgList[imgIndex].childNodes[0].getAttribute("id");
         imgName += fileExt;
-        //console.log(imgName);
-        var dl = document.createElement("a");
-        dl.setAttribute("href", currentSrc);
-        dl.setAttribute("download", imgName);
-        dl.click();
-        dl.remove();
 
-        document.body.focus();
+        //GM_download({url: currentSrc, name: imgName, saveAs: false});
+        //GM_download(currentSrc, imgName);
+        //console.log(imgName);
+        //var dl = document.createElement("a");
+        //dl.setAttribute("href", currentSrc);
+        //dl.setAttribute("download", imgName);
+        //dl.style.display = 'none';
+        //document.body.appendChild(dl);
+        //dl.click();
+        //dl.remove();
+        //document.body.focus();
+
+        DownloadFile(currentSrc, imgName);
     }
+    function DownloadFile(source, filename){
+        GM_xmlhttpRequest({
+			url: source,
+			method: 'GET',
+			context: {
+				'url': source,
+                'imgname': filename,
+			},
+			responseType: 'blob',
+			onload: blibBlobDownloader,
+		});
+    }
+
+    function blibBlobDownloader( xhr )
+	{
+		if( xhr.status !== 200 )
+		{
+			console.error("xhr.status: ", xhr.status, xhr.statusText);
+			console.error("url: " + xhr.context.url);
+			return;
+		}
+		var wndURL = window.webkitURL || window.URL,
+			resource = wndURL.createObjectURL(xhr.response);
+		fileDownloader(xhr.context.imgname, resource);
+		wndURL.revokeObjectURL( resource );
+	}
+
+    function fileDownloader( name, resource )
+	{
+		var a = document.createElement('a'),
+			body = document.body || document.getElementsByTagName('body')[0];
+		a.setAttribute('download', name);
+		a.href = resource;
+		body.appendChild(a);
+		a.click();
+		body.removeChild(a);
+	}
 
     function dlAll() {
         var prevIndex = imgIndex;
@@ -805,6 +851,19 @@
                     let tmpImg = imgList[index].childNodes[0].childNodes[0];
                     let srcIndex = tmpImg.src;
 
+                    let tImg = imgList[index];
+                    let postUrl = tImg.getAttribute('openref');
+                    let postHtml = GetHtmlFromUrl(postUrl);
+                    let imageSrc = postHtml.substring(postHtml.indexOf('Original: <a href="') + 19);
+                    //imageSrc = imageSrc.substring(imageSrc.indexOf('src="')+5, imageSrc.indexOf('>'));
+                    imageSrc = 'http:' + imageSrc.substring(0, imageSrc.indexOf('"')).replace('&amp;', '&');
+
+                    postSources[srcIndex] = imageSrc;
+                    return postSources[srcIndex];
+
+                    //old
+                    
+
                     if (postSources[srcIndex] === undefined) {
                         let tmpUrl = tmpImg.src;
                         tmpUrl = tmpUrl.replace("/preview/", "/").replace("c.sank", "cs.sank").replace("i.sank", "is.sank");
@@ -1049,6 +1108,16 @@
             console.log(ex);
             urlChecks[url] = null;
         }
+    }
+
+    function GetHtmlFromUrl(url){
+        var xhr = new XMLHttpRequest();
+        xhr.open("GET", url, false);
+        xhr.send();
+        //xhr.onreadystatechange = function(){
+        //
+        //}
+        return xhr.response;
     }
 
     function JsonHttpRequest(urlRequest) {
