@@ -14,7 +14,7 @@ Supported Sites:
  Sankukucomplex.com - images/no tags(yet)
 
 v1.455
--Fix to sankaku thats should be more robust and hopefully more permanent
+-Fix to sankaku thats should be more robust and hopefully more permanent 
 
 v1.451
 -Tiny fix for sankaku that i broke last time oops
